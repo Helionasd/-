@@ -1,0 +1,3599 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>异闻录：闻风丧胆（像素版MVP）</title>
+  <style>
+    :root{
+      /* 轻亮风格（更接近手机休闲游戏UI） */
+      --bg:#f6f7fb;
+      --panel:#ffffff;
+      --border:#e5e7eb;
+      --text:#0f172a;
+      --muted:#64748b;
+      --accent:#2563eb;
+      --bad:#ef4444;
+      --good:#10b981;
+      --warn:#f59e0b;
+    }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      background:
+        radial-gradient(900px 700px at 20% 0%, rgba(37,99,235,0.12) 0%, rgba(246,247,251,0) 60%),
+        radial-gradient(900px 700px at 90% 20%, rgba(245,158,11,0.12) 0%, rgba(246,247,251,0) 55%),
+        var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      overscroll-behavior: none;
+    }
+    .wrap{
+      max-width: none;
+      margin: 0 auto;
+      padding: 12px;
+      display:grid;
+      grid-template-columns: 1fr 340px;
+      gap: 14px;
+      align-items:start;
+    }
+    @media (max-width: 980px){
+      .wrap{ grid-template-columns: 1fr; }
+    }
+    .panel{
+      background: var(--panel);
+      border:1px solid var(--border);
+      border-radius: 14px;
+      overflow:hidden;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+    }
+    .hd{
+      padding: 12px 14px;
+      border-bottom:1px solid var(--border);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 10px;
+      background: rgba(15,23,42,0.02);
+    }
+    .title{ font-weight: 800; }
+    .sub{ color: var(--muted); font-size: 12px; }
+    .bd{ padding: 14px; }
+    .gameStage{
+      position: relative;
+      width: 100%;
+    }
+    canvas{
+      width: 100%;
+      height: auto;
+      /* 不完全像素风：允许平滑 */
+      image-rendering: auto;
+      background: #ffffff;
+      border:1px solid var(--border);
+      border-radius: 12px;
+      display:block;
+    }
+    .promptBar{
+      position:absolute;
+      left: 10px;
+      top: 10px;
+      right: 260px; /* 默认给右上角小地图让位（会在JS里按实际小地图宽度动态调整） */
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.88);
+      border: 1px solid rgba(15,23,42,0.14);
+      color: rgba(15,23,42,0.92);
+      font-size: 13px;
+      font-weight: 650;
+      line-height: 1.35;
+      backdrop-filter: blur(8px);
+      pointer-events: none;
+      box-shadow: 0 10px 30px rgba(15,23,42,0.10);
+    }
+
+    /* 手机横屏：尽量把画面做大，隐藏右侧面板 */
+    @media (max-width: 980px) and (orientation: landscape){
+      .wrap{ padding: 6px; }
+      .sidePanel{ display:none; }
+      .hd .sub{ display:none; }
+    }
+
+    /* 一键横屏放大（全屏） */
+    body.wideMode{ overflow:hidden; }
+    body.wideMode .wrap{ padding:0; grid-template-columns: 1fr; gap:0; }
+    body.wideMode .panel{ border-radius:0; border:none; box-shadow:none; }
+    body.wideMode .sidePanel{ display:none; }
+    body.wideMode .hd{ display:none; }
+    body.wideMode .bd{ padding:0; }
+    body.wideMode .gameStage{
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+    }
+    body.wideMode canvas{
+      width: auto;
+      height: auto;
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      border-radius: 0;
+      border: none;
+      transform-origin: center center;
+      /* 用“居中 + 旋转 + 缩放”保证比例正确，不拉伸 */
+      transform: translate(-50%, -50%) rotate(var(--wideRot, 0deg)) scale(var(--wideScale, 1));
+    }
+    /* 竖屏时也能“横屏大屏玩”：把画布旋转 90 度并缩放到屏幕内 */
+    body.wideMode.widePortrait canvas{ --wideRot: 90deg; }
+    body.wideMode .touchBar{
+      position: fixed;
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      z-index: 50;
+      display:flex;
+      justify-content:space-between;
+      gap: 12px;
+      pointer-events: none;
+      margin-top: 0;
+    }
+    body.wideMode .touchBar .joy,
+    body.wideMode .touchBar .actPad{
+      pointer-events: auto;
+      background: rgba(255,255,255,0.55);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(15,23,42,0.14);
+      border-radius: 14px;
+      padding: 8px;
+    }
+    body.wideMode .touchBar .joy{ transform: scale(0.95); transform-origin: left bottom; }
+    body.wideMode .touchBar .actPad{ min-width: 170px; }
+
+    /* 开始界面：永远有“开始游戏”按钮 */
+    .titleStart{
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:flex-end;
+      justify-content:center;
+      padding: 18px;
+      background: linear-gradient(180deg, rgba(15,23,42,0.0) 55%, rgba(15,23,42,0.28) 100%);
+      pointer-events:none;
+    }
+    .titleStart.hidden{ display:none; }
+    .titleStart .box{
+      pointer-events:auto;
+      display:flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content:center;
+    }
+    .titleStart .box button{
+      font-size: 16px;
+      padding: 12px 16px;
+      border-radius: 14px;
+    }
+    .overlay{
+      position:absolute;
+      inset: 0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding: 14px;
+      background: rgba(15,23,42,0.35);
+    }
+    .overlay.hidden{ display:none; }
+    .modal{
+      width: min(560px, 100%);
+      background: rgba(255,255,255,0.97);
+      border: 1px solid rgba(15,23,42,0.12);
+      border-radius: 14px;
+      overflow:hidden;
+      box-shadow: 0 20px 80px rgba(15,23,42,0.20);
+      animation: pop .16s ease-out;
+    }
+    @keyframes pop{
+      from{ transform: translateY(8px) scale(0.98); opacity: 0; }
+      to{ transform: translateY(0) scale(1); opacity: 1; }
+    }
+    .modalHd{
+      padding: 10px 12px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 10px;
+      border-bottom: 1px solid rgba(15,23,42,0.10);
+    }
+    .modalTitle{
+      font-weight: 800;
+      color: rgba(37,99,235,0.95);
+      font-size: 14px;
+    }
+    .modalClose{
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      border-radius: 10px;
+      font-size: 18px;
+      line-height: 34px;
+    }
+    .modalBd{ padding: 12px; }
+    .modalText{
+      white-space: pre-wrap;
+      color: rgba(15,23,42,0.88);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .modalCustom{ margin-top: 10px; }
+    .modalChoices{
+      margin-top: 12px;
+      display:flex;
+      flex-wrap:wrap;
+      gap: 10px;
+    }
+    .seatHud{
+      display:flex;
+      flex-wrap:wrap;
+      gap: 8px;
+      align-items:center;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+    .seatGrid{
+      display:grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+    }
+    .seatCell{
+      min-height: 44px;
+      border-radius: 12px;
+      border:1px solid rgba(15,23,42,0.12);
+      background: rgba(15,23,42,0.03);
+      color: rgba(15,23,42,0.90);
+      font-weight: 700;
+    }
+    .seatCell.dim{
+      color: rgba(170,178,197,0.35);
+      background: rgba(255,255,255,0.02);
+    }
+    .seatCell.focus{
+      border-color: rgba(110,231,255,0.62);
+      box-shadow: 0 0 0 3px rgba(110,231,255,0.12);
+    }
+    .seatPad{
+      margin-top: 10px;
+      display:grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      align-items:center;
+      justify-items:center;
+    }
+    .seatPad button{ width: 100%; }
+    .seatPad .empty{ visibility:hidden; }
+    .touchBar{
+      margin-top: 12px;
+      display:flex;
+      gap: 12px;
+      align-items:center;
+      justify-content:space-between;
+      flex-wrap:wrap;
+    }
+    /* 摇杆（替代方向键） */
+    .joy{
+      width: 170px;
+      height: 170px;
+      position: relative;
+      user-select: none;
+      touch-action: none;
+    }
+    .joyBase{
+      position:absolute;
+      inset:0;
+      border-radius: 999px;
+      background: rgba(15,23,42,0.06);
+      border: 1px solid rgba(15,23,42,0.14);
+    }
+    .joyKnob{
+      position:absolute;
+      left:50%;
+      top:50%;
+      width: 72px;
+      height: 72px;
+      border-radius: 999px;
+      transform: translate(-50%,-50%);
+      background: rgba(255,255,255,0.85);
+      border: 1px solid rgba(15,23,42,0.16);
+      box-shadow: 0 14px 34px rgba(15,23,42,0.14);
+    }
+    .actPad{
+      display:flex;
+      gap: 10px;
+      align-items:center;
+      flex-wrap:wrap;
+      touch-action:none;
+    }
+    .actPad button{ min-width: 92px; }
+    /* 桌面端：使用键盘控制，隐藏触屏摇杆区避免干扰 */
+    @media (pointer:fine){
+      .touchBar{ display:none; }
+    }
+    .hudGrid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .schedulePanel{
+      border: 1px solid rgba(15,23,42,0.10);
+      background: rgba(15,23,42,0.02);
+      border-radius: 14px;
+      padding: 10px;
+    }
+    .schedulePanel .h{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      font-weight: 800;
+      color: rgba(15,23,42,0.85);
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+    .schedulePanel .rows{
+      display:grid;
+      gap: 6px;
+      font-size: 12px;
+      color: rgba(15,23,42,0.78);
+    }
+    .scheduleRow{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 8px;
+      padding: 6px 8px;
+      border-radius: 12px;
+      border: 1px solid rgba(15,23,42,0.06);
+      background: rgba(255,255,255,0.55);
+    }
+    .scheduleRow .left{ display:flex; gap:8px; align-items:center; }
+    .scheduleRow .tag{
+      font-weight: 800;
+      width: 28px;
+      text-align:center;
+      border-radius: 10px;
+      padding: 3px 0;
+      background: rgba(37,99,235,0.10);
+      color: rgba(37,99,235,0.95);
+    }
+    .scheduleRow.done{
+      opacity: 0.55;
+      text-decoration: line-through;
+    }
+    .scheduleRow.current{
+      border-color: rgba(37,99,235,0.35);
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.08);
+    }
+    .pill{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      border:1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.03);
+    }
+    .pill b{ color: var(--text); }
+    .pill.good{ border-color: rgba(124,255,178,0.22); }
+    .pill.warn{ border-color: rgba(255,209,102,0.24); }
+    .pill.bad{ border-color: rgba(255,90,122,0.24); }
+    .btnRow{ display:flex; flex-wrap:wrap; gap:10px; }
+    button{
+      appearance:none;
+      border:1px solid rgba(15,23,42,0.14);
+      background: rgba(15,23,42,0.04);
+      color: var(--text);
+      padding: 9px 12px;
+      border-radius: 10px;
+      font-size: 14px;
+      cursor:pointer;
+      transition: .12s ease;
+    }
+    button:hover{ background: rgba(15,23,42,0.07); transform: translateY(-1px); }
+    button:disabled{ opacity:.45; cursor:not-allowed; transform:none; }
+    button.primary{
+      background: linear-gradient(180deg, rgba(37,99,235,0.18), rgba(37,99,235,0.06));
+      border-color: rgba(37,99,235,0.36);
+    }
+    button.danger{
+      background: linear-gradient(180deg, rgba(239,68,68,0.16), rgba(239,68,68,0.06));
+      border-color: rgba(239,68,68,0.32);
+    }
+    .log{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      color: var(--muted);
+      white-space: pre-wrap;
+      max-height: 460px;
+      overflow:auto;
+      padding-right: 6px;
+    }
+    .line{ padding: 2px 0; border-bottom:1px dashed rgba(15,23,42,0.10); }
+    .line:last-child{ border-bottom:none; }
+    .tip{ color: var(--muted); font-size: 13px; margin-top: 10px; }
+
+    /* 结算界面：彩纸屑动画 */
+    .confetti{
+      position: relative;
+      height: 86px;
+      overflow:hidden;
+      border-radius: 12px;
+      border: 1px dashed rgba(15,23,42,0.18);
+      background: linear-gradient(180deg, rgba(37,99,235,0.08), rgba(245,158,11,0.06));
+    }
+    .confetti i{
+      position:absolute;
+      top:-12px;
+      width: 10px;
+      height: 14px;
+      border-radius: 3px;
+      opacity: .9;
+      animation: fall 1.9s linear infinite;
+    }
+    @keyframes fall{
+      0%{ transform: translateY(-20px) rotate(0deg); opacity:.0; }
+      10%{ opacity:.9; }
+      100%{ transform: translateY(120px) rotate(260deg); opacity:.0; }
+    }
+    .badgeRow{ display:flex; flex-wrap:wrap; gap:8px; margin-top: 10px; }
+    .badgeChip{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border:1px solid rgba(15,23,42,0.12);
+      background: rgba(15,23,42,0.03);
+      font-size: 12px;
+      color: rgba(15,23,42,0.84);
+    }
+    .badgeChip b{ color: rgba(37,99,235,0.95); }
+    .statGrid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .stat{
+      padding: 10px;
+      border-radius: 12px;
+      border:1px solid rgba(15,23,42,0.10);
+      background: rgba(15,23,42,0.02);
+    }
+    .stat .k{ font-size: 12px; color: var(--muted); }
+    .stat .v{ font-size: 18px; font-weight: 900; margin-top: 2px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="panel">
+      <div class="hd">
+        <div>
+          <div class="title">异闻录：闻风丧胆（像素版MVP）</div>
+          <div class="sub">方向键/WASD移动 · 交互按钮/空格进入入口 · 手机可玩（触屏方向键）</div>
+        </div>
+        <div class="btnRow">
+          <button id="btnUsePerfume" title="使用香水：清新BUFF，降低臭圈掉SAN">使用香水</button>
+          <button id="btnWide" title="全屏并建议横屏游玩">横屏放大</button>
+          <button id="btnMute" title="开关音效">音效：开</button>
+          <button id="btnSave">存档</button>
+          <button id="btnClear" class="danger">清档</button>
+        </div>
+      </div>
+      <div class="bd">
+        <div class="gameStage" id="gameStage">
+          <div class="promptBar" id="promptBar">指引加载中…</div>
+          <canvas id="game" width="960" height="540"></canvas>
+          <div class="titleStart hidden" id="titleStart">
+            <div class="box">
+              <button id="btnStartGame" class="primary">开始游戏</button>
+              <button id="btnContinueGame">继续游戏</button>
+              <button id="btnWide2">横屏放大</button>
+            </div>
+          </div>
+          <div class="overlay hidden" id="overlay">
+            <div class="modal" role="dialog" aria-modal="true">
+              <div class="modalHd">
+                <div class="modalTitle" id="ovTitle">提示</div>
+                <button class="modalClose" id="ovClose" aria-label="关闭">×</button>
+              </div>
+              <div class="modalBd">
+                <div class="modalText" id="ovText"></div>
+                <div class="modalCustom" id="ovCustom"></div>
+                <div class="modalChoices" id="ovChoices"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="touchBar" aria-label="触屏操作区">
+          <div class="joy" id="joy" aria-label="摇杆">
+            <div class="joyBase"></div>
+            <div class="joyKnob" id="joyKnob"></div>
+          </div>
+          <div class="actPad">
+            <button id="btnInteract" class="primary">交互</button>
+            <button id="btnSchedule">课表</button>
+            <button id="btnMenu">菜单</button>
+          </div>
+        </div>
+        <div class="tip">玩法：走进蓝色大门会自动进入场景（也可点“交互”/按空格）；入口会按时间段锁定。红色臭圈会持续掉SAN（香水可减免）。</div>
+      </div>
+    </div>
+
+    <div class="panel sidePanel">
+      <div class="hd">
+        <div>
+          <div class="title">HUD / 日志</div>
+          <div class="sub" id="objective">目标：活到第5天 + 五天内乐跑≥2次</div>
+        </div>
+      </div>
+      <div class="bd">
+        <div class="hudGrid" id="hud"></div>
+        <div style="height:12px"></div>
+        <div id="schedulePanel"></div>
+        <div style="height:10px"></div>
+        <div class="log" id="log"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ===============================
+    // 像素版MVP说明（可迭代扩展）
+    // 1) 先实现：地图走路 + 场景入口 + 臭圈持续掉SAN + 对话/选项框 + 课表流程
+    // 2) 再实现：更复杂的成就/结局/道具/双人等
+    // ===============================
+
+    // ---------- DOM ----------
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const elHUD = document.getElementById('hud');
+    const elLog = document.getElementById('log');
+    const elObjective = document.getElementById('objective');
+    const elPromptBar = document.getElementById('promptBar');
+    const elOverlay = document.getElementById('overlay');
+    const elOvTitle = document.getElementById('ovTitle');
+    const elOvText = document.getElementById('ovText');
+    const elOvCustom = document.getElementById('ovCustom');
+    const elOvChoices = document.getElementById('ovChoices');
+    const elTitleStart = document.getElementById('titleStart');
+    const btnStartGame = document.getElementById('btnStartGame');
+    const btnContinueGame = document.getElementById('btnContinueGame');
+    const btnWide = document.getElementById('btnWide');
+    const btnWide2 = document.getElementById('btnWide2');
+    const btnOvClose = document.getElementById('ovClose');
+    const btnUsePerfume = document.getElementById('btnUsePerfume');
+    const btnMute = document.getElementById('btnMute');
+    const btnSave = document.getElementById('btnSave');
+    const btnClear = document.getElementById('btnClear');
+    const btnInteract = document.getElementById('btnInteract');
+    const btnSchedule = document.getElementById('btnSchedule');
+    const btnMenu = document.getElementById('btnMenu');
+    const elJoy = document.getElementById('joy');
+    const elJoyKnob = document.getElementById('joyKnob');
+    const elSchedulePanel = document.getElementById('schedulePanel');
+
+    // ---------- 存档 ----------
+    const SAVE_KEY = 'ywl_pixel_save_v1';
+
+    // ---------- 音效（纯前端合成，无需额外资源文件） ----------
+    const SFX_KEY = 'ywl_pixel_sfx_muted';
+    let sfxMuted = false;
+    try{ sfxMuted = localStorage.getItem(SFX_KEY) === '1'; }catch{}
+    function syncMuteBtn(){
+      if(!btnMute) return;
+      btnMute.textContent = sfxMuted ? '音效：关' : '音效：开';
+    }
+    syncMuteBtn();
+
+    let audioCtx = null;
+    function ensureAudio(){
+      if(audioCtx) return audioCtx;
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if(!Ctx) return null;
+      audioCtx = new Ctx();
+      return audioCtx;
+    }
+    async function unlockAudio(){
+      if(sfxMuted) return;
+      const c = ensureAudio();
+      if(!c) return;
+      if(c.state === 'suspended'){
+        try{ await c.resume(); }catch{}
+      }
+    }
+    // 首次交互解锁音频（手机必须）
+    window.addEventListener('pointerdown', () => unlockAudio(), { once:true, passive:true });
+    window.addEventListener('touchstart', () => unlockAudio(), { once:true, passive:true });
+    window.addEventListener('keydown', () => unlockAudio(), { once:true });
+
+    function playTone({ f0=440, f1=null, type='sine', dur=0.08, vol=0.06 }){
+      if(sfxMuted) return;
+      const c = ensureAudio();
+      if(!c) return;
+      const t0 = c.currentTime;
+      const osc = c.createOscillator();
+      const g = c.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(f0, t0);
+      if(typeof f1 === 'number'){
+        osc.frequency.exponentialRampToValueAtTime(Math.max(40, f1), t0 + dur);
+      }
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(Math.max(0.0001, vol), t0 + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      osc.connect(g);
+      g.connect(c.destination);
+      osc.start(t0);
+      osc.stop(t0 + dur + 0.02);
+    }
+
+    function sfx(name){
+      // 轻量音效：尽量不打扰
+      if(name === 'click') return playTone({ f0: 620, f1: 820, type:'triangle', dur:0.05, vol:0.045 });
+      if(name === 'enter') return playTone({ f0: 520, f1: 980, type:'sine', dur:0.09, vol:0.05 });
+      if(name === 'dialog') return playTone({ f0: 420, f1: 520, type:'triangle', dur:0.06, vol:0.04 });
+      if(name === 'bad') return playTone({ f0: 240, f1: 160, type:'sawtooth', dur:0.10, vol:0.06 });
+      if(name === 'good') return playTone({ f0: 880, f1: 660, type:'sine', dur:0.09, vol:0.05 });
+      if(name === 'use') return playTone({ f0: 700, f1: 1050, type:'triangle', dur:0.08, vol:0.05 });
+    }
+
+    if(btnMute){
+      btnMute.addEventListener('click', async () => {
+        await unlockAudio();
+        sfxMuted = !sfxMuted;
+        try{ localStorage.setItem(SFX_KEY, sfxMuted ? '1' : '0'); }catch{}
+        syncMuteBtn();
+        if(!sfxMuted) sfx('click');
+      });
+    }
+
+    function saveGame(){
+      try{
+        localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+        logLine('（已存档）');
+        sfx('click');
+      }catch{
+        logLine('（存档失败：浏览器限制）');
+        sfx('bad');
+      }
+    }
+    function loadGame(){
+      try{
+        const raw = localStorage.getItem(SAVE_KEY);
+        if(!raw) return null;
+        return JSON.parse(raw);
+      }catch{ return null; }
+    }
+    function clearSave(){
+      try{ localStorage.removeItem(SAVE_KEY); }catch{}
+      logLine('（已清档）');
+      sfx('click');
+    }
+
+    // ---------- 数据 ----------
+    const COURSE_POOL = ['体育课','高等数学','近现代史纲要','英语'];
+
+    function newState(){
+      return {
+        version: 1,
+        screen: 'title', // title | game
+        // 核心数值
+        day: 1,
+        maxDay: 5,
+        money: 200,
+        san: 100,
+        influence: 0,
+        // 跑步与约谈
+        runCount: 0,
+        ranToday: false,
+        talkRisk: 0, // 旷课累计风险（0-100）
+        talkTimes: 0, // 约谈次数（用于成就，不提示给玩家）
+        stats: {
+          stinkHits: 0,       // 臭圈扣SAN次数
+          forcedSeats: 0,     // 强制落座次数
+          smokeEncounters: 0, // 烟人遭遇次数（放风/寝室）
+          happyWaters: 0,     // 快乐水购买次数
+          showers: 0,         // 洗澡次数
+        },
+        // 道具与BUFF
+        inventory: { perfume: 1, garlicBox: 0, scrubTowel: 0 }, // 搓澡巾留扩展
+        buff: { freshSeconds: 0 }, // 清新BUFF：按秒计时，减免臭圈掉SAN
+        // 日程
+        phase: 'morning', // morning / noon / afternoon / evening / night / end
+        slotIdx: 0,
+        schedule: null, // { morning:[{kind,course}], afternoon:[...] }
+        // 标记
+        noBreakfastToday: false,
+        needBreakfast: true,
+        needLunch: false,
+        needDinner: false,
+        // 成就/结局（最小版：只展示部分，留扩展点）
+        achievements: {},
+        ending: null,
+        over: false,
+        // 地图位置
+        map: 'campus',
+        player: { x: 72, y: 170, w: 10, h: 10, speed: 68, animT: 0, animFrame: 0 }, // 像素单位
+        npcs: [],
+        // 香人：地图里永远存在一个，位置每6秒刷新（碰到香圈 +3 SAN）
+        fragrance: { map: 'campus', x: 900, y: 560, r: 48, ttl: 0, claimed: false },
+        log: [],
+      };
+    }
+
+    let state = newState();
+
+    // ---------- 资源（像素封面） ----------
+    const assets = {
+      splash: new Image(),
+      splashReady: false,
+      // 贴图资源位（同目录放这些文件即可替换默认形状）
+      // - assets/player.png：玩家
+      // - assets/npc.png：NPC
+      // - assets/building_*.png：建筑
+      playerImg: new Image(),
+      playerReady: false,
+      npcImg: new Image(),
+      npcReady: false,
+      buildings: {
+        classroom: new Image(),
+        library: new Image(),
+        cafeteria: new Image(),
+        store: new Image(),
+        dorm: new Image(),
+        playground: new Image(),
+      },
+      buildingsReady: {
+        classroom: false,
+        library: false,
+        cafeteria: false,
+        store: false,
+        dorm: false,
+        playground: false,
+      },
+      deco: {
+        tree: new Image(),
+        bench: new Image(),
+      },
+      decoReady: {
+        tree: false,
+        bench: false,
+      },
+      campusGround: new Image(),
+      campusGroundReady: false,
+    };
+    assets.splash.src = 'ywl_splash.jpg';
+    assets.splash.onload = () => { assets.splashReady = true; };
+    assets.playerImg.src = 'assets/player.png';
+    assets.playerImg.onload = () => { assets.playerReady = true; };
+    assets.playerImg.onerror = () => { assets.playerReady = false; };
+    assets.npcImg.src = 'assets/npc.png';
+    assets.npcImg.onload = () => { assets.npcReady = true; };
+    assets.npcImg.onerror = () => { assets.npcReady = false; };
+    for(const k of Object.keys(assets.buildings)){
+      const img = assets.buildings[k];
+      img.src = `assets/building_${k}.png`;
+      img.onload = () => { assets.buildingsReady[k] = true; };
+      img.onerror = () => { assets.buildingsReady[k] = false; };
+    }
+    assets.deco.tree.src = 'assets/tree.png';
+    assets.deco.tree.onload = () => { assets.decoReady.tree = true; };
+    assets.deco.tree.onerror = () => { assets.decoReady.tree = false; };
+    assets.deco.bench.src = 'assets/bench.png';
+    assets.deco.bench.onload = () => { assets.decoReady.bench = true; };
+    assets.deco.bench.onerror = () => { assets.decoReady.bench = false; };
+
+    assets.campusGround.src = 'assets/campus_ground.jpg';
+    assets.campusGround.onload = () => { assets.campusGroundReady = true; };
+    assets.campusGround.onerror = () => { assets.campusGroundReady = false; };
+
+    function logLine(t){
+      state.log.push(t);
+      if(state.log.length > 220) state.log.shift();
+      renderLog();
+    }
+
+    function renderLog(){
+      elLog.innerHTML = state.log.slice().reverse().map(x => `<div class="line">${escapeHtml(x)}</div>`).join('');
+    }
+    function escapeHtml(s){
+      return String(s)
+        .replaceAll('&','&amp;')
+        .replaceAll('<','&lt;')
+        .replaceAll('>','&gt;')
+        .replaceAll('"','&quot;')
+        .replaceAll("'","&#039;");
+    }
+
+    function hudTagForSan(){
+      if(state.san <= 30) return 'pill bad';
+      if(state.san <= 70) return 'pill warn';
+      return 'pill good';
+    }
+    function hudTagForInfluence(){
+      if(state.influence >= 40) return 'pill bad';
+      if(state.influence > 0) return 'pill warn';
+      return 'pill good';
+    }
+    function updateHUD(){
+      elHUD.innerHTML = `
+        <div class="${hudTagForSan()}"><span>第<b>${state.day}</b>/${state.maxDay}天 · SAN</span><b>${state.san}</b></div>
+        <div class="${hudTagForInfluence()}"><span>生活费</span><b>${state.money}R</b></div>
+        <div class="pill"><span>影响力</span><b>${state.influence}</b></div>
+        <div class="pill"><span>乐跑</span><b>${state.runCount}/2（今日${state.ranToday?'已跑':'未跑'}）</b></div>
+        <div class="pill"><span>约谈风险</span><b>${state.talkRisk}%</b></div>
+        <div class="pill"><span>香水</span><b>${state.inventory.perfume}</b></div>
+      `;
+      renderSchedulePanel();
+      btnUsePerfume.disabled = state.inventory.perfume <= 0 || state.over;
+      btnSave.disabled = state.over;
+    }
+
+    function renderSchedulePanel(){
+      if(!elSchedulePanel) return;
+      const s = state.schedule;
+      if(!s){
+        elSchedulePanel.innerHTML = `<div class="schedulePanel"><div class="h">课表<span style="color:rgba(15,23,42,0.55);font-weight:700;">未生成</span></div></div>`;
+        return;
+      }
+      const p = state.phase;
+      const half = (p === 'morning' || p === 'afternoon') ? p : null;
+      const labelHalf = half === 'morning' ? '上午' : (half === 'afternoon' ? '下午' : '今日');
+      const rows = [];
+      const addHalf = (key, label) => {
+        const arr = s[key] || [];
+        for(let i=0;i<arr.length;i++){
+          const slot = arr[i];
+          const course = slot.kind === 'class' ? slot.course : '空课';
+          const showCourse = (slot.kind === 'class' && slot.course === '体育课') ? '体育课（去操场）' : course;
+          const isCurrent = (half === key && state.slotIdx === i && !slot.done);
+          const cls = 'scheduleRow' + (slot.done ? ' done' : '') + (isCurrent ? ' current' : '');
+          rows.push(`<div class="${cls}"><div class="left"><span class="tag">${label}${i+1}</span><span>${escapeHtml(showCourse)}</span></div><span style="color:rgba(15,23,42,0.55)">${slot.done?'已完成':(isCurrent?'进行中':'')}</span></div>`);
+        }
+      };
+      addHalf('morning','上');
+      addHalf('afternoon','下');
+      elSchedulePanel.innerHTML = `
+        <div class="schedulePanel">
+          <div class="h">课表<span style="color:rgba(15,23,42,0.55);font-weight:700;">${labelHalf}</span></div>
+          <div class="rows">${rows.join('')}</div>
+        </div>
+      `;
+    }
+
+    // ---------- UI：弹窗（手机可点按钮） ----------
+    const ui = {
+      mode: 'play', // play | dialog | menu | seat
+      title: '',
+      text: '',
+      choices: [],
+      seat: null, // seat mini-game state
+      customRender: null, // () => void
+    };
+
+    function showOverlay(){
+      elOverlay.classList.remove('hidden');
+    }
+    function hideOverlay(){
+      elOverlay.classList.add('hidden');
+      elOvCustom.innerHTML = '';
+      elOvChoices.innerHTML = '';
+      ui.customRender = null;
+    }
+
+    function renderOverlay(){
+      elOvTitle.textContent = ui.title || '提示';
+      elOvText.textContent = ui.text || '';
+      elOvCustom.innerHTML = '';
+      elOvChoices.innerHTML = '';
+
+      if(ui.mode === 'seat' && ui.seat){
+        renderSeatOverlay();
+        return;
+      }
+
+      if(typeof ui.customRender === 'function'){
+        ui.customRender();
+      }
+
+      for(const opt of (ui.choices || [])){
+        const b = document.createElement('button');
+        b.textContent = opt.label;
+        if(opt.primary) b.classList.add('primary');
+        if(opt.danger) b.classList.add('danger');
+        b.addEventListener('click', () => {
+          opt.onSelect?.();
+          // 大多数 onSelect 都会把 ui.mode 设回 play
+          if(ui.mode === 'play') hideOverlay();
+          else renderOverlay();
+          updateHUD();
+          updateFlowPrompt();
+        });
+        elOvChoices.appendChild(b);
+      }
+    }
+
+    function openDialog({ title, text, choices, customRender }){
+      ui.mode = 'dialog';
+      ui.title = title;
+      ui.text = text;
+      ui.choices = choices || [];
+      ui.customRender = customRender || null;
+      renderOverlay();
+      showOverlay();
+      sfx('dialog');
+      updateFlowPrompt();
+    }
+
+    function openMenu(){
+      ui.mode = 'menu';
+      ui.title = '菜单';
+      ui.text = '选择：';
+      ui.choices = [
+        { label:'继续', primary:true, onSelect: () => { ui.mode='play'; } },
+        { label:'存档', onSelect: () => saveGame() },
+        { label:'读档', onSelect: () => {
+          const loaded = loadGame();
+          if(!loaded){ logLine('没有存档可读。'); return; }
+          state = loaded;
+          logLine('读取存档成功。');
+          ui.mode = 'play';
+        }},
+        { label:'重开（不删存档）', danger:true, onSelect: () => {
+          state = newState();
+          ui.mode='play';
+          logLine('新游戏开始。');
+          startDay();
+        }},
+      ];
+      renderOverlay();
+      showOverlay();
+      updateFlowPrompt();
+    }
+
+    function renderSeatOverlay(){
+      const s = ui.seat;
+      if(!s) return;
+
+      // 同步引用值（因为 s.cx/s.cy/s.steps 会变）
+      ui.title = `教室选座：${s.courseName}`;
+
+      const reduceText = (state.buff.freshSeconds > 0) ? '（清新BUFF生效：选座扣SAN减半）' : '';
+      elOvText.textContent =
+`规则：只能看见中心周围1格（3×3）。方向键/触屏方向键移动都会消耗1步。
+步数用完还没坐下 → 强制落座（扣臭值30%）。
+点击可见格子即可坐下。${reduceText}`;
+
+      // 顶部小HUD
+      const hud = document.createElement('div');
+      hud.className = 'seatHud';
+      hud.textContent = `步数：${s.steps} ｜ 视野中心：(${s.cx+1}, ${s.cy+1})`;
+      elOvCustom.appendChild(hud);
+
+      // 网格
+      const grid = document.createElement('div');
+      grid.className = 'seatGrid';
+      for(let y=0;y<5;y++){
+        for(let x=0;x<5;x++){
+          const idx = y*5 + x;
+          const visible = (Math.abs(x - s.cx) <= 1 && Math.abs(y - s.cy) <= 1);
+          const btn = document.createElement('button');
+          btn.className = 'seatCell' + (visible ? '' : ' dim') + ((x===s.cx && y===s.cy) ? ' focus' : '');
+          btn.textContent = visible ? String(s.grid[idx]) : '？';
+          btn.disabled = !visible;
+          btn.addEventListener('click', () => {
+            // 点击可见格子：直接坐下
+            s._chooseAt?.(x,y);
+          });
+          grid.appendChild(btn);
+        }
+      }
+      elOvCustom.appendChild(grid);
+
+      // 方向键按钮（移动视野中心=消耗步数）
+      const pad = document.createElement('div');
+      pad.className = 'seatPad';
+      const mk = (label, dx, dy) => {
+        const b = document.createElement('button');
+        b.textContent = label;
+        b.addEventListener('click', () => seatMove(dx, dy));
+        return b;
+      };
+      const empty = document.createElement('button');
+      empty.className = 'empty';
+      empty.disabled = true;
+      pad.appendChild(empty.cloneNode(true));
+      pad.appendChild(mk('上', 0, -1));
+      pad.appendChild(empty.cloneNode(true));
+      pad.appendChild(mk('左', -1, 0));
+      pad.appendChild(mk('下', 0, 1));
+      pad.appendChild(mk('右', 1, 0));
+      elOvCustom.appendChild(pad);
+
+      // 选项按钮（强制/取消）
+      elOvChoices.innerHTML = '';
+      const btnForce = document.createElement('button');
+      btnForce.textContent = '强制坐下';
+      btnForce.className = 'danger';
+      btnForce.addEventListener('click', () => s._forceSeat?.());
+      elOvChoices.appendChild(btnForce);
+
+      const btnCancel = document.createElement('button');
+      btnCancel.textContent = '取消（回去上课）';
+      btnCancel.addEventListener('click', () => {
+        ui.mode = 'play';
+        ui.seat = null;
+        hideOverlay();
+        updateFlowPrompt();
+      });
+      elOvChoices.appendChild(btnCancel);
+    }
+
+    function seatMove(dx, dy){
+      const s = ui.seat;
+      if(ui.mode !== 'seat' || !s) return;
+      if(s.steps <= 0){
+        s._forceSeat?.();
+        return;
+      }
+      const nx = Math.max(0, Math.min(4, s.cx + dx));
+      const ny = Math.max(0, Math.min(4, s.cy + dy));
+      if(nx === s.cx && ny === s.cy) return;
+      s.cx = nx;
+      s.cy = ny;
+      s.steps -= 1; // 方向键移动也算一步
+      if(s.steps <= 0){
+        s._forceSeat?.();
+        return;
+      }
+      renderOverlay();
+    }
+
+    // ---------- 地图（简单像素场景） ----------
+    // 每张地图：边界墙 + 入口点 + 臭圈（圆形范围）
+    const MAPS = {
+      campus: {
+        name: '校园（大地图）',
+        bounds: { x: 0, y: 0, w: 1800, h: 1200 },
+        walls: [
+          // 主建筑块（不可穿过）
+          { x: 700,  y: 160, w: 420, h: 260 },   // 教学楼
+          { x: 220,  y: 140, w: 360, h: 220 },   // 图书馆
+          { x: 1280, y: 150, w: 360, h: 240 },   // 食堂
+          { x: 240,  y: 760, w: 360, h: 220 },   // 小卖部
+          { x: 1270, y: 760, w: 380, h: 260 },   // 寝室
+          { x: 760,  y: 720, w: 320, h: 200 },   // 操场看台（墙）
+
+          // 校园围墙
+          { x: 0, y: 0, w: 1800, h: 20 },
+          { x: 0, y: 1180, w: 1800, h: 20 },
+          { x: 0, y: 0, w: 20, h: 1200 },
+          { x: 1780, y: 0, w: 20, h: 1200 },
+        ],
+        paths: [
+          // 道路/广场（可走，不是墙）
+          { x: 120, y: 520, w: 1560, h: 90 }, // 主干道
+          { x: 860, y: 80,  w: 90,   h: 1040 }, // 纵向道路
+          { x: 420, y: 360, w: 180,  h: 420 }, // 图书馆连廊
+          { x: 1360,y: 380, w: 180,  h: 420 }, // 食堂连廊
+          { x: 820, y: 520, w: 460,  h: 130 }, // 中央广场
+        ],
+        decorations: [
+          // 建筑贴图（仅用于视觉，碰撞仍用 walls）
+          { kind:'building', key:'library', x: 250,  y: 170, w: 320, h: 320 },
+          { kind:'building', key:'classroom', x: 760, y: 170, w: 360, h: 360 },
+          { kind:'building', key:'cafeteria', x: 1320, y: 170, w: 320, h: 320 },
+          { kind:'building', key:'store', x: 280,  y: 780, w: 320, h: 320 },
+          { kind:'building', key:'dorm', x: 1320, y: 740, w: 360, h: 360 },
+          { kind:'building', key:'playground', x: 780, y: 820, w: 320, h: 320 },
+        ],
+        portals: [
+          // 入口放在墙体外
+          { id:'classroom', name:'教室', rect:{ x: 860, y: 440, w: 110, h: 34 }, to:'classroom' },
+          { id:'library', name:'图书馆', rect:{ x: 360, y: 370, w: 110, h: 34 }, to:'library' },
+          { id:'cafeteria', name:'食堂', rect:{ x: 1410, y: 400, w: 110, h: 34 }, to:'cafeteria' },
+          { id:'store', name:'小卖部', rect:{ x: 360, y: 730, w: 110, h: 34 }, to:'store' },
+          { id:'dorm', name:'寝室', rect:{ x: 1440, y: 730, w: 110, h: 34 }, to:'dorm' },
+          { id:'playground', name:'操场', rect:{ x: 860, y: 930, w: 110, h: 34 }, to:'playground' },
+        ],
+        stinkZones: [
+          // 校园里“臭源圈”（更分散）
+          { x: 620,  y: 520, r: 70, stink: 1.0, label:'臭源' },
+          { x: 1150, y: 560, r: 60, stink: 0.9, label:'臭源' },
+          { x: 980,  y: 860, r: 55, stink: 0.8, label:'臭源' },
+        ]
+      },
+      classroom: {
+        name: '教室',
+        bounds: { x: 20, y: 40, w: 600, h: 300 },
+        walls: [
+          { x: 20, y: 40, w: 600, h: 12 }, // 上墙
+          { x: 20, y: 328, w: 600, h: 12 }, // 下墙
+          { x: 20, y: 40, w: 12, h: 300 }, // 左墙
+          { x: 608, y: 40, w: 12, h: 300 }, // 右墙
+        ],
+        portals: [
+          { id:'back', name:'返回校园', rect:{ x: 36, y: 302, w: 80, h: 24 }, to:'campus', spawn:{x: 905, y: 510} }
+        ],
+        stinkZones: [
+          { x: 330, y: 170, r: 55, stink: 1.15, label:'后排臭源' },
+        ]
+      },
+      library: {
+        name: '图书馆',
+        bounds: { x: 20, y: 40, w: 600, h: 300 },
+        walls: [
+          { x: 20, y: 40, w: 600, h: 12 },
+          { x: 20, y: 328, w: 600, h: 12 },
+          { x: 20, y: 40, w: 12, h: 300 },
+          { x: 608, y: 40, w: 12, h: 300 },
+          { x: 220, y: 120, w: 220, h: 40 }, // 书架
+        ],
+        portals: [
+          { id:'back', name:'返回校园', rect:{ x: 36, y: 302, w: 80, h: 24 }, to:'campus', spawn:{x: 405, y: 420} }
+        ],
+        stinkZones: [
+          { x: 120, y: 160, r: 26, stink: 0.6, label:'轻臭' },
+        ]
+      },
+      cafeteria: {
+        name: '食堂',
+        bounds: { x: 20, y: 40, w: 600, h: 300 },
+        walls: [
+          { x: 20, y: 40, w: 600, h: 12 },
+          { x: 20, y: 328, w: 600, h: 12 },
+          { x: 20, y: 40, w: 12, h: 300 },
+          { x: 608, y: 40, w: 12, h: 300 },
+          { x: 120, y: 110, w: 420, h: 42 }, // 打饭窗口
+        ],
+        portals: [
+          { id:'back', name:'返回校园', rect:{ x: 36, y: 302, w: 80, h: 24 }, to:'campus', spawn:{x: 1460, y: 470} }
+        ],
+        stinkZones: [
+          { x: 320, y: 200, r: 30, stink: 0.7, label:'油烟味' },
+        ]
+      },
+      store: {
+        name: '小卖部',
+        bounds: { x: 20, y: 40, w: 600, h: 300 },
+        walls: [
+          { x: 20, y: 40, w: 600, h: 12 },
+          { x: 20, y: 328, w: 600, h: 12 },
+          { x: 20, y: 40, w: 12, h: 300 },
+          { x: 608, y: 40, w: 12, h: 300 },
+          { x: 160, y: 120, w: 320, h: 50 }, // 柜台
+        ],
+        portals: [
+          { id:'back', name:'返回校园', rect:{ x: 36, y: 302, w: 80, h: 24 }, to:'campus', spawn:{x: 405, y: 705} }
+        ],
+        stinkZones: [
+          { x: 520, y: 220, r: 22, stink: 0.5, label:'仓库味' },
+        ]
+      },
+      dorm: {
+        name: '寝室',
+        bounds: { x: 20, y: 40, w: 600, h: 300 },
+        walls: [
+          { x: 20, y: 40, w: 600, h: 12 },
+          { x: 20, y: 328, w: 600, h: 12 },
+          { x: 20, y: 40, w: 12, h: 300 },
+          { x: 608, y: 40, w: 12, h: 300 },
+          { x: 90, y: 90, w: 170, h: 50 }, // 床
+          { x: 380, y: 90, w: 170, h: 50 }, // 床
+        ],
+        portals: [
+          { id:'back', name:'返回校园', rect:{ x: 36, y: 302, w: 80, h: 24 }, to:'campus', spawn:{x: 1490, y: 705} }
+        ],
+        stinkZones: [
+          // 寝室里有概率烟人：MVP用“进入寝室后触发事件”来体现
+        ]
+      },
+      playground: {
+        name: '操场',
+        bounds: { x: 20, y: 40, w: 600, h: 300 },
+        walls: [
+          { x: 20, y: 40, w: 600, h: 12 },
+          { x: 20, y: 328, w: 600, h: 12 },
+          { x: 20, y: 40, w: 12, h: 300 },
+          { x: 608, y: 40, w: 12, h: 300 },
+        ],
+        portals: [
+          { id:'back', name:'返回校园', rect:{ x: 36, y: 302, w: 80, h: 24 }, to:'campus', spawn:{x: 905, y: 980} }
+        ],
+        stinkZones: [
+          { x: 320, y: 180, r: 24, stink: 0.5, label:'汗味' },
+        ]
+      }
+    };
+
+    function currentMap(){ return MAPS[state.map]; }
+
+    function portalName(id){
+      const map = {
+        classroom: '教室',
+        library: '图书馆',
+        cafeteria: '食堂',
+        store: '小卖部',
+        dorm: '寝室',
+        playground: '操场',
+        back: '返回校园',
+      };
+      return map[id] || id;
+    }
+
+    function getCurrentSlot(){
+      const p = state.phase;
+      if(p !== 'morning' && p !== 'afternoon') return null;
+      const slot = state.schedule?.[p]?.[state.slotIdx];
+      return slot || null;
+    }
+
+    function ensureFreeChoices(slot){
+      if(!slot || slot.kind !== 'free') return;
+      if(slot.freeChoices && slot.freeChoices.length === 3) return;
+      // 空课：固定给“图书馆”+ 另外两个随机（更符合玩家预期）
+      const pool = ['playground','dorm','store'];
+      slot.freeChoices = ['library', ...sample(pool, 2)];
+    }
+
+    function getAllowedPortalIds(){
+      // 非游戏中：不允许进入
+      if(state.screen !== 'game') return new Set();
+      // 室内“返回校园”永远允许
+      if(state.map !== 'campus') return new Set(['back']);
+      // 校园地图：按时间段限制入口
+      if(state.over) return new Set();
+
+      // 早餐/午饭/晚饭：只允许进食堂
+      if(state.phase === 'morning' && state.needBreakfast) return new Set(['cafeteria']);
+      if(state.phase === 'noon' && state.needLunch) return new Set(['cafeteria']);
+      if(state.phase === 'evening' && state.needDinner) return new Set(['cafeteria']);
+
+      // 夜晚：只能去寝室（洗澡/睡觉）或小卖部
+      if(state.phase === 'night') return new Set(['dorm','store']);
+
+      // 上课/空课：严格按当前时段
+      const slot = getCurrentSlot();
+      if(!slot) return new Set();
+      if(slot.done) return new Set(); // 理论上不会发生
+      if(slot.kind === 'class'){
+        // 体育课：在操场上课，不选座，触发是否乐跑
+        if(slot.course === '体育课') return new Set(['playground']);
+        return new Set(['classroom']);
+      }
+      if(slot.kind === 'free'){
+        ensureFreeChoices(slot);
+        return new Set(slot.freeChoices);
+      }
+      return new Set();
+    }
+
+    function showNotAllowedDialog(){
+      const allowed = Array.from(getAllowedPortalIds()).map(portalName).join(' / ');
+      openDialog({
+        title: '日程警告：你想旷课吗？',
+        text: `系统拦住了你：\n“同学，现在不是随便乱逛的时候。”\n\n当前指引：${getFlowPrompt()}\n你现在只能去：${allowed || '（无）'}\n\n提示：走到蓝色入口块里，再点【交互】`,
+        choices: [
+          { label:'知道了', primary:true, onSelect: () => { ui.mode='play'; } }
+        ]
+      });
+    }
+
+    // ---------- 碰撞 ----------
+    function rectsOverlap(a,b){
+      return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+    }
+    function pointInRect(px,py,r){
+      return px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h;
+    }
+    function clampToBounds(p){
+      const m = currentMap();
+      p.x = Math.max(m.bounds.x, Math.min(m.bounds.x + m.bounds.w - p.w, p.x));
+      p.y = Math.max(m.bounds.y, Math.min(m.bounds.y + m.bounds.h - p.h, p.y));
+    }
+    function collideWithWalls(p){
+      const m = currentMap();
+      // 简化：按轴分离
+      for(const w of m.walls){
+        if(rectsOverlap(p, w)){
+          // 回退（最简单：把玩家推回边界）
+          const leftPen = (p.x + p.w) - w.x;
+          const rightPen = (w.x + w.w) - p.x;
+          const topPen = (p.y + p.h) - w.y;
+          const botPen = (w.y + w.h) - p.y;
+          const minPen = Math.min(leftPen, rightPen, topPen, botPen);
+          if(minPen === leftPen) p.x = w.x - p.w;
+          else if(minPen === rightPen) p.x = w.x + w.w;
+          else if(minPen === topPen) p.y = w.y - p.h;
+          else p.y = w.y + w.h;
+        }
+      }
+    }
+
+    // ---------- 摄像机（大地图滚动） ----------
+    const cam = { x: 0, y: 0 };
+    function updateCamera(){
+      const m = currentMap();
+      // 以玩家为中心
+      const targetX = state.player.x + state.player.w/2 - canvas.width/2;
+      const targetY = state.player.y + state.player.h/2 - canvas.height/2;
+      const minX = m.bounds.x;
+      const minY = m.bounds.y;
+      const maxX = m.bounds.x + Math.max(0, m.bounds.w - canvas.width);
+      const maxY = m.bounds.y + Math.max(0, m.bounds.h - canvas.height);
+      cam.x = Math.max(minX, Math.min(maxX, targetX));
+      cam.y = Math.max(minY, Math.min(maxY, targetY));
+    }
+
+    // ---------- NPC（走动） ----------
+    function initNPCs(){
+      // 只在新局初始化一次；读档则沿用存档
+      if(state.npcs && state.npcs.length) return;
+      state.npcs = [
+        // 校园：多一点“大学生流动感”
+        { id:'npc1', map:'campus', x: 520,  y: 600,  w: 10, h: 10, speed: 46, vx: 1,  vy: 0, color:'#8b5cf6', t:0 },
+        { id:'npc2', map:'campus', x: 1180, y: 560,  w: 10, h: 10, speed: 42, vx: -1, vy: 0, color:'#0ea5e9', t:1, stinkR: 58 }, // 臭圈NPC
+        { id:'npc3', map:'campus', x: 900,  y: 680,  w: 10, h: 10, speed: 38, vx: 0,  vy: 1, color:'#f97316', t:2 },
+        { id:'npc6', map:'campus', x: 760,  y: 520,  w: 10, h: 10, speed: 40, vx: 1,  vy: 0, color:'#22c55e', t:3 },
+        { id:'npc7', map:'campus', x: 1030, y: 520,  w: 10, h: 10, speed: 36, vx: -1, vy: 0, color:'#06b6d4', t:4 },
+        { id:'npc8', map:'campus', x: 860,  y: 420,  w: 10, h: 10, speed: 34, vx: 0,  vy: 1, color:'#a855f7', t:5 },
+        { id:'npc9', map:'campus', x: 1450, y: 700,  w: 10, h: 10, speed: 34, vx: 0,  vy: -1,color:'#ef4444', t:6, stinkR: 46 }, // 臭圈NPC
+        { id:'npc10',map:'campus', x: 380,  y: 700,  w: 10, h: 10, speed: 33, vx: 0,  vy: 1, color:'#0f766e', t:7 },
+        { id:'npc11',map:'campus', x: 980,  y: 980,  w: 10, h: 10, speed: 32, vx: 1,  vy: 0, color:'#f59e0b', t:8 },
+        { id:'npc12',map:'campus', x: 880,  y: 560,  w: 10, h: 10, speed: 32, vx: -1, vy: 0, color:'#64748b', t:9 },
+
+        // 室内：少量NPC点缀
+        { id:'npc4', map:'library', x: 180,  y: 220,  w: 10, h: 10, speed: 26, vx: 1,  vy: 0, color:'#22c55e', t:10 },
+        { id:'npc13',map:'library', x: 420,  y: 240,  w: 10, h: 10, speed: 24, vx: -1, vy: 0, color:'#0ea5e9', t:11 },
+        { id:'npc5', map:'cafeteria', x: 320, y: 240, w: 10, h: 10, speed: 28, vx: -1, vy: 0, color:'#ef4444', t:12, stinkR: 44 },
+        { id:'npc14',map:'cafeteria', x: 220, y: 180, w: 10, h: 10, speed: 26, vx: 1,  vy: 0, color:'#a855f7', t:13 },
+      ];
+    }
+
+    function npcCollide(n, m){
+      // 与墙体简单碰撞：撞了就反向
+      for(const w of m.walls){
+        if(rectsOverlap(n, w)){
+          // 反向并推离一点
+          n.x -= n.vx * 3;
+          n.y -= n.vy * 3;
+          n.vx *= -1;
+          n.vy *= -1;
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function updateNPCs(dt){
+      if(state.over) return;
+      // 允许对话时NPC仍走动，避免“进场景就卡住”的观感；菜单/选座仍暂停
+      if(ui.mode === 'menu' || ui.mode === 'seat') return;
+      if(state.screen !== 'game') return;
+      initNPCs();
+
+      for(const n of state.npcs){
+        if(n.map !== state.map) continue;
+        const m = currentMap();
+        n.t += dt;
+        // 每隔一段时间随机转向
+        if(n.t > 1.6 + (Math.random()*1.4)){
+          n.t = 0;
+          const r = Math.random();
+          if(r < 0.25){ n.vx = 1; n.vy = 0; }
+          else if(r < 0.50){ n.vx = -1; n.vy = 0; }
+          else if(r < 0.75){ n.vx = 0; n.vy = 1; }
+          else { n.vx = 0; n.vy = -1; }
+        }
+
+        const ox = n.x, oy = n.y;
+        n.x += n.vx * n.speed * dt;
+        n.y += n.vy * n.speed * dt;
+
+        // 边界
+        n.x = Math.max(m.bounds.x, Math.min(m.bounds.x + m.bounds.w - n.w, n.x));
+        n.y = Math.max(m.bounds.y, Math.min(m.bounds.y + m.bounds.h - n.h, n.y));
+
+        // 撞墙就反弹
+        if(npcCollide(n, m)){
+          // 偶尔换个方向避免卡死
+          if(Math.random() < 0.35){
+            const swap = n.vx;
+            n.vx = n.vy;
+            n.vy = swap;
+          }
+        }
+
+        // 如果没动（被夹住），随机挪一挪
+        if(Math.hypot(n.x-ox, n.y-oy) < 0.1){
+          n.x += (Math.random()-0.5)*8;
+          n.y += (Math.random()-0.5)*8;
+        }
+      }
+    }
+
+    // ---------- 输入 ----------
+    const keys = {};
+    const touchMove = { up:false, down:false, left:false, right:false };
+    window.addEventListener('keydown', (e) => {
+      keys[e.key.toLowerCase()] = true;
+      // 游玩时阻止方向键滚动页面（避免“按了但角色不动”的错觉）
+      if(ui.mode === 'play' && state.screen === 'game'){
+        if(e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown'){
+          e.preventDefault();
+        }
+      }
+      if(e.key === 'Escape'){
+        if(ui.mode === 'play') openMenu();
+        else { ui.mode = 'play'; ui.seat = null; hideOverlay(); }
+        updateFlowPrompt();
+        return;
+      }
+
+      // 选座界面：方向键移动会消耗步数
+      if(ui.mode === 'seat' && ui.seat){
+        if(e.key === 'ArrowLeft'){ e.preventDefault(); seatMove(-1,0); return; }
+        if(e.key === 'ArrowRight'){ e.preventDefault(); seatMove(1,0); return; }
+        if(e.key === 'ArrowUp'){ e.preventDefault(); seatMove(0,-1); return; }
+        if(e.key === 'ArrowDown'){ e.preventDefault(); seatMove(0,1); return; }
+      }
+
+      // 空格交互（仅在游玩模式）
+      if(e.code === 'Space'){
+        e.preventDefault();
+        // 对话时也允许空格交互（避免“键盘没用”），但选座/菜单不行
+        if(ui.mode !== 'seat' && ui.mode !== 'menu') interact();
+      }
+    });
+    window.addEventListener('keyup', (e) => keys[e.key.toLowerCase()] = false);
+
+    function interact(){
+      if(state.over) return;
+      if(ui.mode !== 'play') return;
+      if(state.screen !== 'game'){
+        // 开始界面：点“交互”=唤起开始菜单
+        if(state.screen === 'title') showTitleMenu(loadGame());
+        return;
+      }
+      const m = currentMap();
+      const px = state.player.x + state.player.w/2;
+      const py = state.player.y + state.player.h/2;
+      // 找到最近的入口（站在入口矩形里）
+      const portal = m.portals.find(p => pointInRect(px, py, p.rect));
+      if(portal){
+        const allowed = getAllowedPortalIds();
+        if(!allowed.has(portal.id)){
+          showNotAllowedDialog();
+          return;
+        }
+        enterPortal(portal);
+        return;
+      }
+      // 如果没站在入口上，给提示
+      logLine('（这里没啥剧情点。去蓝色入口块里点【交互】）');
+    }
+
+    // 自动进门（替代“必须按空格/交互”）
+    let portalCooldown = 0;
+    let lastPortalKey = '';
+    function autoEnterPortal(){
+      if(state.over) return;
+      if(ui.mode === 'menu' || ui.mode === 'seat') return;
+      if(state.screen !== 'game') return;
+      if(portalCooldown > 0) return;
+      const m = currentMap();
+      const px = state.player.x + state.player.w/2;
+      const py = state.player.y + state.player.h/2;
+      const portal = m.portals.find(p => pointInRect(px, py, p.rect));
+      if(!portal) { lastPortalKey = ''; return; }
+
+      const key = `${state.map}:${portal.id}`;
+      if(key === lastPortalKey) return; // 站在同一门口不重复触发
+      lastPortalKey = key;
+
+      const allowed = getAllowedPortalIds();
+      portalCooldown = 0.55;
+      if(!allowed.has(portal.id)){
+        showNotAllowedDialog();
+        return;
+      }
+      enterPortal(portal);
+    }
+
+    // ---------- 流程：课表与阶段 ----------
+    function buildSchedule(){
+      function buildHalf(){
+        const total = 4;
+        const classCount = randInt(2,3);
+        const indices = sample([0,1,2,3], classCount).sort((a,b)=>a-b);
+        const slots = [];
+        for(let i=0;i<total;i++){
+          const hasClass = indices.includes(i);
+          slots.push({ kind: hasClass ? 'class' : 'free', course: hasClass ? pick(COURSE_POOL) : null, done:false });
+        }
+        return slots;
+      }
+      state.schedule = { morning: buildHalf(), afternoon: buildHalf() };
+      state.slotIdx = 0;
+    }
+
+    function startDay(){
+      state.ranToday = false;
+      state.phase = 'morning';
+      buildSchedule();
+      state.needBreakfast = true;
+      state.needLunch = false;
+      state.needDinner = false;
+      // 签到：香水+1
+      state.inventory.perfume += 1;
+      logLine(`第${state.day}天：签到获得香水×1。`);
+      setObjectiveText();
+      // 不再弹“出发”对话框（避免玩家误以为“动不了”）：直接进入游玩
+      ui.mode = 'play';
+      hideOverlay();
+      state.map = 'campus';
+      // 出生在校园主干道附近，方便新手快速找到建筑入口
+      state.player.x = 900; state.player.y = 560;
+      initNPCs();
+      respawnFragrance();
+      updateCamera();
+      updateHUD();
+    }
+
+    function getFlowPrompt(){
+      if(state.screen !== 'game') return '点【开始游戏】进入';
+      if(state.over) return '已结算';
+      const p = state.phase;
+      const half = (p === 'morning' || p === 'afternoon') ? p : null;
+      const labelHalf = p === 'morning' ? '上午' : (p === 'afternoon' ? '下午' : '');
+
+      if(p === 'morning' && state.needBreakfast) return '清晨：先去食堂吃/不吃早餐';
+      if(p === 'noon' && state.needLunch) return '中午：去食堂选择午饭';
+      if(p === 'evening' && state.needDinner) return '傍晚：去食堂选择晚饭';
+
+      if(half){
+        if(state.slotIdx >= 4){
+          return p === 'morning' ? '上午结束：去食堂吃午饭' : '下午结束：去食堂吃晚饭';
+        }
+        const slot = state.schedule?.[half]?.[state.slotIdx];
+        if(!slot) return `${labelHalf}：还没生成课表（回到校园继续走）`;
+        if(slot.kind === 'class'){
+          if(slot.course === '体育课'){
+            return `${labelHalf}第${state.slotIdx+1}节：去操场上体育课（可触发乐跑）`;
+          }
+          return `${labelHalf}第${state.slotIdx+1}节：去教室上课（${slot.course}）`;
+        }
+        const choices = slot.freeChoices?.map(id => portalName(id)).filter(Boolean);
+        if(choices && choices.length){
+          return `${labelHalf}第${state.slotIdx+1}节：空课——只能去：${choices.join(' / ')}`;
+        }
+        return `${labelHalf}第${state.slotIdx+1}节：空课——系统会给你3个地点可选`;
+      }
+
+      if(p === 'noon') return '中午：去食堂吃午饭';
+      if(p === 'evening') return '傍晚：去食堂吃晚饭';
+      if(p === 'night') return '夜晚：去寝室洗澡/不洗/睡觉（也可去小卖部）';
+      return '在校园里行动，走进蓝色大门会自动进入';
+    }
+
+    function updateFlowPrompt(){
+      const prompt = getFlowPrompt();
+      elPromptBar.textContent = `当前指引：${prompt}`;
+      elObjective.textContent = `目标：活到第5天 + 乐跑≥2次 ｜ 当前指引：${prompt}`;
+    }
+
+    function setObjectiveText(){
+      // 兼容旧调用：统一走 updateFlowPrompt
+      updateFlowPrompt();
+    }
+
+    function advancePhase(){
+      if(state.over) return;
+      if(state.phase === 'morning'){
+        // 上午4个时段走完 → 中午
+        if(state.slotIdx >= 4){
+          state.phase = 'noon';
+          state.slotIdx = 0;
+          state.needLunch = true;
+          openDialog({
+            title: '中午到了',
+            text: '按流程：现在只能去【食堂】选择午饭。',
+            choices: [{ label:'去食堂', primary:true, onSelect: () => ui.mode='play' }]
+          });
+        }
+      }else if(state.phase === 'afternoon'){
+        if(state.slotIdx >= 4){
+          state.phase = 'evening';
+          state.slotIdx = 0;
+          state.needDinner = true;
+          openDialog({
+            title: '傍晚到了',
+            text: '按流程：现在只能去【食堂】选择晚饭。',
+            choices: [{ label:'去食堂', primary:true, onSelect: () => ui.mode='play' }]
+          });
+        }
+      }
+      setObjectiveText();
+      updateHUD();
+    }
+
+    // ---------- 事件：进入口 ----------
+    function enterPortal(portal){
+      if(portal.to !== state.map){
+        // 切地图
+        state.map = portal.to;
+        const spawn = portal.spawn;
+        if(spawn){
+          state.player.x = spawn.x;
+          state.player.y = spawn.y;
+        }else{
+          // 默认：进门后放在地图左下
+          state.player.x = 62;
+          state.player.y = 280;
+        }
+        logLine(`进入：${MAPS[state.map].name}`);
+        sfx('enter');
+        // 香人只在校园刷新
+        respawnFragrance();
+        // 进入某些室内，直接触发“场景事件菜单”
+        onEnterMap();
+        return;
+      }
+    }
+
+    function randPosInMap(mapName){
+      const m = MAPS[mapName];
+      if(!m) return { x: 100, y: 100 };
+      for(let k=0;k<40;k++){
+        const x = m.bounds.x + 60 + Math.random() * (m.bounds.w - 120);
+        const y = m.bounds.y + 80 + Math.random() * (m.bounds.h - 140);
+        // 不要刷在墙体里
+        let ok = true;
+        for(const w of m.walls){
+          if(x > w.x-30 && x < w.x+w.w+30 && y > w.y-30 && y < w.y+w.h+30){
+            ok = false; break;
+          }
+        }
+        if(ok) return { x, y };
+      }
+      return { x: m.bounds.x + m.bounds.w/2, y: m.bounds.y + m.bounds.h/2 };
+    }
+
+    function respawnFragrance(){
+      // 香人只在“大地图（校园）”刷新：每次出现6秒后换位置
+      if(state.map !== 'campus') return;
+      const pos = randPosInMap('campus');
+      state.fragrance.map = 'campus';
+      state.fragrance.x = pos.x;
+      state.fragrance.y = pos.y;
+      state.fragrance.r = 52;
+      state.fragrance.ttl = 6.0;
+      state.fragrance.claimed = false;
+    }
+
+    function updateFragrance(dt){
+      if(state.over) return;
+      if(ui.mode === 'menu' || ui.mode === 'seat') return;
+      if(state.screen !== 'game') return;
+      if(!state.fragrance) return;
+
+      // 只在校园刷新/生效
+      if(state.map !== 'campus') return;
+
+      // 确保一直有一个（在校园）
+      if(state.fragrance.map !== 'campus') respawnFragrance();
+      if(state.fragrance.ttl <= 0) respawnFragrance();
+
+      state.fragrance.ttl -= dt;
+
+      // 进入香圈 +3 SAN（每次出现只给一次）
+      const fx = state.fragrance.x;
+      const fy = state.fragrance.y;
+      const r = state.fragrance.r;
+      const px = state.player.x + state.player.w/2;
+      const py = state.player.y + state.player.h/2;
+      const d = Math.hypot(px - fx, py - fy);
+      if(d <= r && !state.fragrance.claimed){
+        state.fragrance.claimed = true;
+        addSan(15);
+        logLine('你蹭到香人光环：SAN +15（强力清新）');
+        sfx('good');
+      }
+    }
+
+    function onEnterMap(){
+      const m = currentMap();
+      // 不同地图不同事件入口：MVP用“进入后弹一次菜单”
+      if(m.name === '教室'){
+        handleClassroomEntry();
+      }else if(m.name === '图书馆'){
+        handleLibraryEntry();
+      }else if(m.name === '食堂'){
+        handleCafeteriaEntry();
+      }else if(m.name === '操场'){
+        handlePlaygroundEntry();
+      }else if(m.name === '寝室'){
+        handleDormEntry();
+      }else if(m.name === '小卖部'){
+        handleStoreEntry();
+      }
+    }
+
+    // ---------- 规则：影响力过高 课后扣SAN ----------
+    function applyHighInfluencePenalty(where){
+      // 新规则：影响力 > 100 后，每次上课（课后结算）SAN -25
+      // 兼容保留：40~100 仍给一个较轻惩罚（SAN -15），让玩家有“逐步变难”的感觉
+      if(state.influence > 100){
+        applySan(-25, 'highInfluenceClass');
+        logLine(`${where}：影响力爆表（${state.influence}）→ SAN -25（同学们开始捂鼻子）`);
+        return;
+      }
+      if(state.influence >= 40){
+        applySan(-15, 'highInfluenceClass');
+        logLine(`${where}：影响力偏高（${state.influence}）→ SAN -15`);
+      }
+    }
+
+    function determineDeathEnding(context){
+      // 失败结局（按你文档的优先级 + 兜底）
+      // context 只是“本次扣SAN的来源”，最终结局还会看 day/统计
+      if(context === 'food') return '食堂惨案';
+      if(context === 'deadline5') return '咫尺成功';
+      if(context === 'breakSecond') return '三和大神';
+      if(context === 'talk' && state.talkTimes >= 4) return '导员之友';
+      if(state.stats.smokeEncounters >= 8) return '烟雾缭绕';
+      // 第五天午饭后SAN归零：咫尺成功（我们近似：第5天中午/下午/傍晚倒下）
+      if(state.day === 5 && (state.phase === 'noon' || state.phase === 'afternoon' || state.phase === 'evening')) return '咫尺成功';
+      if(state.day === 3 || state.day === 4) return '中道崩殂';
+      return '肺部感染';
+    }
+
+    function applySan(delta, context){
+      if(delta >= 0){
+        addSan(delta);
+        return;
+      }
+      state.san += delta;
+      sfx('bad');
+      if(state.san <= 0 && !state.over){
+        state.over = true;
+        state.ending = determineDeathEnding(context);
+        showResultScreen(false);
+      }
+    }
+
+    function addSan(delta){
+      state.san += delta;
+      if(state.san > 100) state.san = 100;
+      if(state.san < -9999) state.san = -9999;
+    }
+
+    function showChoiceResult(title, text, onContinue){
+      openDialog({
+        title,
+        text,
+        choices: [
+          { label:'继续', primary:true, onSelect: () => { ui.mode = 'play'; onContinue?.(); } }
+        ]
+      });
+    }
+
+    // ---------- 事件：早餐/午饭/晚饭 ----------
+    function handleCafeteriaEntry(){
+      if(state.over) return;
+      if(state.phase === 'morning' && state.needBreakfast){
+        // 早餐
+        openDialog({
+          title: '早餐选择',
+          text: '食堂阿姨盯着你：\n“同学，吃不吃？不吃我可收摊了。”',
+          choices: [
+            { label:'吃早餐（-5R）', primary:true, onSelect: () => {
+              if(state.money < 5){ logLine('钱不够吃早餐。'); return; }
+              state.money -= 5;
+              logLine('早餐：吃了（-5R）。');
+              state.needBreakfast = false;
+              showChoiceResult('早餐结算', '你端起盘子就是一顿猛炫。\n结果：-5R（SAN不变）\n系统：吃饱了才有力气被熏。', () => {
+                updateFlowPrompt();
+              });
+            }},
+            { label:'不吃（SAN -40）', onSelect: () => {
+              logLine('早餐：不吃。');
+              applySan(-40, 'food');
+              logLine('空腹硬扛 → SAN -40');
+              state.needBreakfast = false;
+              if(state.over) return;
+              showChoiceResult('早餐结算', '你选择把早餐省给未来的自己。\n结果：SAN -40\n未来的你：谢谢你。', () => {
+                updateFlowPrompt();
+              });
+            }},
+          ]
+        });
+        return;
+      }
+      if(state.phase === 'noon' && state.needLunch){
+        mealChoice('午饭', 20, () => {
+          state.needLunch = false;
+          state.phase = 'afternoon';
+          state.slotIdx = 0;
+          logLine('午饭结束：进入下午时段。');
+          updateFlowPrompt();
+        });
+        return;
+      }
+      if(state.phase === 'evening' && state.needDinner){
+        mealChoice('晚饭', 20, () => {
+          state.needDinner = false;
+          state.phase = 'night';
+          logLine('晚饭结束：进入夜晚。');
+          updateFlowPrompt();
+        });
+        return;
+      }
+      openDialog({
+        title: '食堂',
+          text: '你闻到了油烟味。\n系统：现在不是饭点，窗口对你冷漠关闭。',
+          choices: [{ label:'撤', primary:true, onSelect: () => ui.mode='play' }]
+      });
+    }
+
+    function mealChoice(title, prettySan, after){
+      openDialog({
+        title,
+        text: '你站在窗口前，闻到了“今日限定”的复杂气味。\n要吃什么？',
+        choices: [
+          { label:'普通饭（-10R，无SAN）', primary:true, onSelect: () => {
+            if(state.money < 10){ logLine('钱不够。'); return; }
+            state.money -= 10;
+            logLine(`${title}：普通饭 -10R`);
+            showChoiceResult(`${title}结算`, '普通饭：朴实无华，但至少是饭。\n结果：-10R（SAN不变）', () => {
+              updateHUD();
+              after?.();
+            });
+          }},
+          { label:`漂亮饭（-30R，SAN +${prettySan}）`, onSelect: () => {
+            if(state.money < 30){ logLine('钱不够。'); return; }
+            state.money -= 30;
+            addSan(prettySan);
+            logLine(`${title}：漂亮饭 -30R，SAN +${prettySan}`);
+            showChoiceResult(`${title}结算`, `漂亮饭：一口下去，世界都变得更顺眼。\n结果：-30R，SAN +${prettySan}（上限100）`, () => {
+              updateHUD();
+              after?.();
+            });
+          }},
+          { label:'不吃（SAN -20）', onSelect: () => {
+            applySan(-20, 'food');
+            logLine(`${title}：不吃 → SAN -20`);
+            if(state.over) return;
+            showChoiceResult(`${title}结算`, '你不吃饭。\n结果：SAN -20\n系统：你这是在挑战人类极限。', () => {
+              updateHUD();
+              after?.();
+            });
+          }},
+        ]
+      });
+    }
+
+    // ---------- 事件：教室（必然选座 + 随机放风） ----------
+    function handleClassroomEntry(){
+      if(state.over) return;
+      const half = (state.phase === 'morning') ? 'morning' : (state.phase === 'afternoon' ? 'afternoon' : null);
+      if(!half){
+        openDialog({
+          title: '教室',
+          text: '现在不是上课阶段。',
+          choices: [{ label:'离开', onSelect: () => ui.mode='play' }]
+        });
+        return;
+      }
+      const slot = state.schedule?.[half]?.[state.slotIdx];
+      if(!slot){
+        openDialog({
+          title: '教室',
+          text: '你现在没有课要上。',
+          choices: [{ label:'离开', onSelect: () => ui.mode='play' }]
+        });
+        return;
+      }
+      if(slot.done){
+        openDialog({
+          title: '教室',
+          text: '这一时段你已经处理过了，去下一个时段吧。',
+          choices: [{ label:'好', onSelect: () => ui.mode='play' }]
+        });
+        return;
+      }
+
+      const courseName = slot.kind === 'class' ? slot.course : '（空课）';
+      const isClass = slot.kind === 'class';
+
+      if(!isClass){
+        openDialog({
+          title: '教室',
+          text: '这节没课，你没必要来教室。',
+          choices: [{ label:'离开', onSelect: () => ui.mode='play' }]
+        });
+        return;
+      }
+
+      if(courseName === '体育课'){
+        openDialog({
+          title: '走错了',
+          text: '体育课不在教室。\n系统：请去【操场】上课（那里会触发是否乐跑）。',
+          choices: [{ label:'我这就去', primary:true, onSelect: () => { ui.mode='play'; } }]
+        });
+        return;
+      }
+
+      openDialog({
+        title: `上课：${courseName}`,
+        text: '要不要上？（上课必然触发选座）',
+        choices: [
+          { label:'去上课（选座）', onSelect: () => {
+            ui.mode = 'play';
+            startSeatMiniGame(courseName, () => {
+              slot.done = true;
+              // 课间：可选择放风/不放风
+              triggerBreakChoice(() => {
+                applyHighInfluencePenalty('课后结算');
+                if(state.over) return;
+                state.slotIdx += 1;
+                setObjectiveText();
+                updateHUD();
+                // 若4个时段结束，自动推进到午饭/傍晚
+                if(state.slotIdx >= 4){
+                  advancePhase();
+                }
+              });
+            });
+          }},
+          { label:'翘课（约谈风险 +20%）', onSelect: () => {
+            state.talkRisk = Math.min(100, state.talkRisk + 20);
+            logLine(`翘课：约谈风险 +20%（${state.talkRisk}%）`);
+            // 每次翘课单独判定是否触发约谈（按当前累计概率）
+            const roll = Math.random() * 100;
+            if(roll < state.talkRisk){
+              state.talkTimes += 1;
+              applySan(-50, 'talk');
+              state.talkRisk = 50; // 被约谈后重置回50%
+              logLine('导员约谈触发：SAN -50，风险重置到50%');
+              if(state.over) return;
+              showChoiceResult('导员约谈', '辅导员：你怎么又来了？\n结果：SAN -50，约谈风险重置到 50%\n（你甚至记住了办公室的Wi‑Fi密码）');
+            }else{
+              logLine('这次侥幸没被约谈。');
+              showChoiceResult('翘课结果', '你成功消失在签到表的盲区。\n结果：侥幸没被约谈（暂时）。');
+            }
+            slot.done = true;
+            state.slotIdx += 1;
+            setObjectiveText();
+            updateHUD();
+            if(state.slotIdx >= 4) advancePhase();
+          }},
+          { label:'离开', onSelect: () => ui.mode='play' }
+        ]
+      });
+    }
+
+    function triggerBreakChoice(done){
+      openDialog({
+        title: '课间',
+        text: '要不要出去放风？\n（放风有机会回血，也有机会遇到烟人）',
+        choices: [
+          { label:'去放风', primary:true, onSelect: () => { ui.mode='play'; triggerBreakEvent(done); } },
+          { label:'不放风（直接回教室）', onSelect: () => {
+            showChoiceResult('课间结果', '你选择不放风。\n结果：无事发生（但也没回血）。', () => { done?.(); });
+          }},
+        ]
+      });
+    }
+
+    function triggerBreakEvent(done){
+      // 前半段
+      const firstSmoke = Math.random() < 0.40;
+      if(firstSmoke){
+        state.stats.smokeEncounters += 1;
+        state.influence += 10;
+        applySan(-20, 'smoke');
+        logLine('课间放风（前半段）：烟人出现！影响力+10，SAN-20');
+        if(state.over) return;
+        openDialog({
+          title: '课间放风（前半段）',
+          text: '烟人刷脸：你要不要立刻离开？',
+          choices: [
+            { label:'立刻离开（时间管理大师条件之一）', onSelect: () => {
+              state.achievements['时间管理大师'] = true;
+              showChoiceResult('放风结果', '你当机立断：撤！\n结果：成功保住剩余理智\n系统：犹豫就会败北。', () => { done?.(); });
+            }},
+            { label:'留下进入后半段', onSelect: () => {
+              showChoiceResult('放风选择', '你不信邪：再待一会儿。\n系统：好的，马上给你安排。', () => {
+                triggerBreakSecondHalf(done);
+              });
+            }}
+          ]
+        });
+      }else{
+        addSan(30);
+        logLine('课间放风（前半段）：空气清新，SAN+30（鼻子：谢天谢地）');
+        openDialog({
+          title: '课间放风（前半段）',
+          text: '你深吸一口气，精神回来了。\n要不要继续放风到后半段？',
+          choices: [
+            { label:'离开', onSelect: () => { showChoiceResult('放风结果', '你见好就收。\n结果：带着这口清新回教室。', () => { done?.(); }); } },
+            { label:'继续到后半段', onSelect: () => { showChoiceResult('放风选择', '你决定继续放风。\n系统：祝你好运。', () => { triggerBreakSecondHalf(done); }); } }
+          ]
+        });
+      }
+    }
+
+    function triggerBreakSecondHalf(done){
+      const secondSmoke = Math.random() < 0.65;
+      if(secondSmoke){
+        state.stats.smokeEncounters += 1;
+        state.influence += 10;
+        applySan(-20, 'breakSecond');
+        logLine('课间放风（后半段）：烟人又来了！影响力+10，SAN-20');
+        if(state.over) return;
+        openDialog({
+          title: '课间放风（后半段）',
+          text: '你选择了留下，烟雾选择了你。',
+          choices: [{ label:'回去上课', primary:true, onSelect: () => {
+            showChoiceResult('放风结算', '你满身烟味回到教室。\n结果：精神值被摩擦（已结算）\n系统：下局还敢吗？', () => { done?.(); });
+          } }]
+        });
+      }else{
+        addSan(10);
+        logLine('课间放风（后半段）：没烟人，SAN+10（短暂幸福）');
+        openDialog({
+          title: '课间放风（后半段）',
+          text: '后半段意外平静。',
+          choices: [{ label:'回去', primary:true, onSelect: () => {
+            showChoiceResult('放风结算', '你带着少量幸福回到教室。\n结果：SAN +10（上限100）', () => { done?.(); });
+          } }]
+        });
+      }
+      updateHUD();
+    }
+
+    // ---------- 事件：图书馆 ----------
+    function handleLibraryEntry(){
+      if(state.over) return;
+      // 图书馆属于自由事件：只在free时段结算“完成该时段”
+      const half = (state.phase === 'morning') ? 'morning' : (state.phase === 'afternoon' ? 'afternoon' : null);
+      const slot = half ? state.schedule?.[half]?.[state.slotIdx] : null;
+      openDialog({
+        title: '图书馆选座',
+        text: 'A. 一般臭\nB. 随机分配（60%香人+30SAN / 40%极臭-20SAN）',
+        choices: [
+          { label:'A. 一般臭（SAN -5）', onSelect: () => {
+            applySan(-5, 'normal');
+            logLine('图书馆：一般臭 → SAN -5（你开始怀疑自己是不是鼻子坏了）');
+            finishFreeSlotIfNeeded(slot, '图书馆');
+            if(state.over) return;
+            showChoiceResult('图书馆结算', '你挑了个“一般臭”的位置。\n结果：SAN -5\n系统：稳健，但也很臭。', () => { updateFlowPrompt(); });
+          }},
+          { label:'B. 随机分配', onSelect: () => {
+            const roll = Math.random();
+            if(roll < 0.60){
+              addSan(30);
+              logLine('图书馆：随机分配 → 遇到香人！SAN +30（空气像开了挂）');
+              finishFreeSlotIfNeeded(slot, '图书馆');
+              showChoiceResult('图书馆结算', '你把命运交给随机。\n结果：遇到香人！SAN +30\n（你甚至想把空气打包带走）', () => { updateFlowPrompt(); });
+            }else{
+              applySan(-20, 'normal');
+              logLine('图书馆：随机分配 → 极臭！SAN -20（你当场灵魂出窍）');
+              finishFreeSlotIfNeeded(slot, '图书馆');
+              if(state.over) return;
+              showChoiceResult('图书馆结算', '你把命运交给随机。\n结果：极臭暴击！SAN -20\n（你：这随机是不是针对我）', () => { updateFlowPrompt(); });
+            }
+            updateHUD();
+          }},
+        ]
+      });
+    }
+
+    // ---------- 事件：寝室 ----------
+    function handleDormEntry(){
+      if(state.over) return;
+      if(state.phase !== 'night'){
+        // 白天进寝室：回复SAN，概率烟人
+        const smoker = Math.random() < 0.30;
+        const slot = getCurrentSlot();
+        if(smoker){
+          state.stats.smokeEncounters += 1;
+          state.influence += 10;
+          addSan(10);
+          logLine('寝室：烟人出现 → 影响力+10，SAN只回+10（他还问你借火…）');
+        }else{
+          addSan(20);
+          logLine('寝室：躺一会儿 → SAN +20（床：还是床靠谱）');
+        }
+        finishFreeSlotIfNeeded(slot, '寝室');
+        updateHUD();
+        openDialog({
+          title: '寝室',
+          text: '你已经消耗了这一节空课时段。',
+          choices: [{ label:'继续', primary:true, onSelect: () => { ui.mode='play'; hideOverlay(); updateFlowPrompt(); } }]
+        });
+        return;
+      }
+      // 夜晚：洗澡/不洗/睡觉
+      openDialog({
+        title: '夜晚：寝室',
+        text: '夜深了。\n系统：请做出你人生中最难的决定之一——洗不洗。',
+        choices: [
+          { label:'洗澡（影响力-20，-5R，SAN-5）', onSelect: () => {
+            const before = state.influence;
+            state.influence = Math.max(0, state.influence - 20);
+            if(state.money >= 5) state.money -= 5;
+            applySan(-5, 'normal');
+            state.stats.showers += 1;
+            logLine(`洗澡：影响力 ${before}→${state.influence}，-5R，SAN-5`);
+            if(state.over) return;
+            showChoiceResult('洗澡结算', '你认真搓了搓。\n结果：影响力 -20（扣到0为止），-5R，SAN -5\n系统：你身上终于有人类的气息了。', () => {
+              updateHUD();
+              updateFlowPrompt();
+            });
+          }},
+          { label:'不洗（影响力+10）', onSelect: () => {
+            state.influence += 10;
+            logLine('不洗澡：影响力 +10（省钱省到灵魂出窍）');
+            showChoiceResult('不洗结算', '你选择了硬扛。\n结果：影响力 +10\n室友：要不你还是去洗洗？你：省钱。', () => {
+              updateHUD();
+              updateFlowPrompt();
+            });
+          }},
+          { label:'睡觉（SAN +20，进入下一天）', onSelect: () => {
+            addSan(20);
+            logLine('睡觉：SAN +20（关机成功）');
+            // 第5天结束结算
+            if(state.day >= state.maxDay){
+              endGame();
+              return;
+            }
+            showChoiceResult('睡觉结算', '你把世界按下了暂停键。\n结果：SAN +20（上限100）\n系统：明天继续受苦。', () => {
+              state.day += 1;
+              state.phase = 'morning';
+              state.slotIdx = 0;
+              startDay();
+              updateFlowPrompt();
+            });
+          }},
+          { label:'先不睡（回校园）', onSelect: () => { ui.mode='play'; hideOverlay(); updateFlowPrompt(); } }
+        ]
+      });
+    }
+
+    // ---------- 事件：操场 ----------
+    function handlePlaygroundEntry(){
+      if(state.over) return;
+      const slot = getCurrentSlot();
+
+      // 体育课：在操场上课（不选座），触发是否乐跑；并消耗“上课时段”
+      if(slot && slot.kind === 'class' && slot.course === '体育课' && !slot.done){
+        openDialog({
+          title: '体育课（操场上课）',
+          text: '体育老师吹哨：\n“集合！今天要不要把乐跑也顺便跑了？”\n（体育课不选座位，直接结算上课时段）',
+          choices: [
+            { label:'跑乐跑（+1次，影响力+10）', primary:true, onSelect: () => {
+              if(state.ranToday){
+                slot.done = true;
+                logLine('体育课：你今天已经跑过一次，老师放你一马。');
+                showChoiceResult('体育课结算', '你尝试跑，但系统提示：一天只能跑一次。\n结果：本节体育课完成（乐跑不增加）', () => {
+                  applyHighInfluencePenalty('体育课结算');
+                  if(state.over) return;
+                  state.slotIdx += 1;
+                  setObjectiveText();
+                  updateHUD();
+                  if(state.slotIdx >= 4) advancePhase();
+                });
+                return;
+              }
+              state.ranToday = true;
+              state.runCount += 1;
+              state.influence += 10;
+              slot.done = true;
+              logLine(`体育课：完成乐跑！次数 ${state.runCount}/2，影响力+10`);
+              showChoiceResult('体育课结算', `你一边跑一边怀疑人生。\n结果：乐跑 +1（${state.runCount}/2），影响力 +10\n系统：体育课=合法刷KPI。`, () => {
+                applyHighInfluencePenalty('体育课结算');
+                if(state.over) return;
+                state.slotIdx += 1;
+                setObjectiveText();
+                updateHUD();
+                if(state.slotIdx >= 4) advancePhase();
+              });
+            }},
+            { label:'摸鱼（不跑）', onSelect: () => {
+              slot.done = true;
+              logLine('体育课：你选择摸鱼，假装在热身。');
+              showChoiceResult('体育课结算', '你进行了“灵魂热身”。\n结果：体育课完成（乐跑未+1）', () => {
+                applyHighInfluencePenalty('体育课结算');
+                if(state.over) return;
+                state.slotIdx += 1;
+                setObjectiveText();
+                updateHUD();
+                if(state.slotIdx >= 4) advancePhase();
+              });
+            }},
+          ]
+        });
+        return;
+      }
+
+      openDialog({
+        title: '操场：跑乐跑',
+        text: '操场风有点大，但你还有KPI要完成。\n今天跑不跑？（一天最多一次）\n跑步：影响力+10，乐跑次数+1',
+        choices: [
+          { label:'跑！', onSelect: () => {
+            if(state.ranToday){
+              logLine('今天已经跑过一次了。');
+              finishFreeSlotIfNeeded(slot, '操场');
+              showChoiceResult('操场结算', '你已经跑过一次了。\n结果：本次不重复计数（但空课时段已消耗）\n系统：别卷了，卷不动了。', () => { updateFlowPrompt(); });
+              return;
+            }
+            state.ranToday = true;
+            state.runCount += 1;
+            state.influence += 10;
+            logLine(`乐跑完成：次数 ${state.runCount}/2，影响力+10`);
+            finishFreeSlotIfNeeded(slot, '操场');
+            showChoiceResult('操场结算', `你跑完了，心跳声盖过了异味。\n结果：乐跑 +1（${state.runCount}/2），影响力 +10\n系统：KPI完成的爽感来了。`, () => {
+              updateHUD();
+              updateFlowPrompt();
+            });
+          }},
+          { label:'不跑（也算消耗空课时段）', onSelect: () => {
+            logLine('操场：你犹豫了一下，最后没跑。');
+            finishFreeSlotIfNeeded(slot, '操场');
+            showChoiceResult('操场结算', '你决定把体力留给更重要的战斗。\n结果：本节空课已消耗（乐跑未+1）', () => { updateFlowPrompt(); });
+          } }
+        ]
+      });
+    }
+
+    // ---------- 事件：小卖部 ----------
+    function handleStoreEntry(){
+      if(state.over) return;
+      const slot = getCurrentSlot();
+      openDialog({
+        title: '小卖部',
+        text: '小卖部阿姨露出职业微笑：\n“同学，来点快乐吗？”\n\n快乐水：-100R，SAN +50\n（搓澡巾：之后再上架）',
+        choices: [
+          { label:'买快乐水（-100R，SAN+50）', onSelect: () => {
+            if(state.money < 100){ logLine('钱不够买快乐水。'); return; }
+            state.money -= 100;
+            addSan(50);
+            state.stats.happyWaters += 1;
+            logLine('买了快乐水：-100R，SAN +50');
+            finishFreeSlotIfNeeded(slot, '小卖部');
+            showChoiceResult('小卖部结算', '你拧开快乐水，咕嘟咕嘟。\n结果：-100R，SAN +50（上限100）\n阿姨：下次还来哈。', () => {
+              updateHUD();
+              updateFlowPrompt();
+            });
+          }},
+          { label:'买韭菜盒子（-20R，影响力+10）', onSelect: () => {
+            if(state.money < 20){ logLine('钱不够买韭菜盒子。'); return; }
+            state.money -= 20;
+            state.influence += 10;
+            state.inventory.garlicBox += 1;
+            logLine('买了韭菜盒子：-20R，影响力+10（并放入背包）');
+            finishFreeSlotIfNeeded(slot, '小卖部');
+            showChoiceResult('小卖部结算', '你买了韭菜盒子。\n结果：-20R，影响力 +10\n系统：嘴臭值已上线，谨慎呼吸。', () => {
+              updateHUD();
+              updateFlowPrompt();
+            });
+          }},
+          { label:'不买（也算消耗空课时段）', onSelect: () => {
+            logLine('小卖部：路过，啥也没买。');
+            finishFreeSlotIfNeeded(slot, '小卖部');
+            showChoiceResult('小卖部结算', '你只看不买，主打一个白嫖空气。\n结果：空课时段已消耗', () => { updateFlowPrompt(); });
+          } }
+        ]
+      });
+    }
+
+    // ---------- 自由时段处理 ----------
+    function finishFreeSlotIfNeeded(slot, where){
+      if(!slot) return;
+      if(slot.kind !== 'free') return;
+      if(slot.done) return;
+      slot.done = true;
+      logLine(`${where}：已消耗当前自由时段。`);
+      state.slotIdx += 1;
+      setObjectiveText();
+      updateHUD();
+      if(state.slotIdx >= 4) advancePhase();
+    }
+
+    // ---------- 选座位：5×5网格（步数=3，视野=1步，强制落座扣SAN=臭值30%） ----------
+    function startSeatMiniGame(courseName, onDone){
+      // 0-80臭值，生成25格
+      const grid = Array.from({length:25}, () => randInt(0, 80));
+      // 玩家视野中心：从第一行中间开始
+      let cx = 2, cy = 0;
+      let steps = 3;
+      let chosen = false;
+
+      ui.mode = 'seat';
+      ui.seat = {
+        courseName,
+        grid,
+        cx, cy,
+        steps,
+        onDone: onDone || (()=>{}),
+      };
+
+      function forceSeat(){
+        if(chosen) return;
+        chosen = true;
+        // 强制落座：按当前“视野中心格”强制坐下（更符合“最近座位”）
+        const stink = ui.seat.grid[ui.seat.cy*5 + ui.seat.cx];
+        const loss = Math.ceil(stink * 0.30);
+        state.stats.forcedSeats += 1;
+        applySan(-loss, 'forcedSeat');
+        logLine(`强制落座：臭值${stink} → SAN -${loss}（30%）`);
+        if(state.over) return;
+        showChoiceResult('选座结算（强制落座）', `你犹豫到步数清零，系统把你按在座位上。\n座位臭值：${stink}\n结果：SAN -${loss}\n系统：别挣扎了，坐。`, () => {
+          ui.seat = null;
+          updateFlowPrompt();
+          onDone?.();
+        });
+      }
+
+      function chooseAt(x,y){
+        if(chosen) return;
+        chosen = true;
+        const stink = ui.seat.grid[y*5+x];
+        // 清新BUFF减免：降低50%
+        const mult = (state.buff.freshSeconds > 0) ? 0.5 : 1.0;
+        const loss = Math.ceil(stink * 0.20 * mult); // 主动选座：扣臭值的20%（更优于强制）
+        applySan(-loss, 'seat');
+        logLine(`选座落座：臭值${stink} → SAN -${loss}${mult<1?'（清新BUFF减免）':''}`);
+        if(state.over) return;
+        showChoiceResult('选座结算', `你果断坐下。\n座位臭值：${stink}\n结果：SAN -${loss}${mult<1?'（香水减免）':''}\n系统：勇敢的人先享受世界。`, () => {
+          ui.seat = null;
+          updateFlowPrompt();
+          onDone?.();
+        });
+      }
+
+      // 把处理函数挂到seat对象，供按键调用
+      ui.seat._forceSeat = forceSeat;
+      ui.seat._chooseAt = chooseAt;
+
+      // 直接打开“可点击”的选座界面（手机友好）
+      ui.title = `教室选座：${courseName}`;
+      ui.text = '规则：只能看见中心周围1格（3×3）。方向键/触屏方向键移动都会消耗1步。\n步数用完还没坐下 → 强制落座（扣臭值30%）。\n点击可见格子即可坐下。';
+      ui.choices = [
+        { label:'强制坐下（现在就坐）', danger:true, onSelect: () => ui.seat? ui.seat._forceSeat() : null },
+        { label:'取消（回去上课）', onSelect: () => { ui.mode='play'; ui.seat=null; hideOverlay(); } },
+      ];
+      renderOverlay();
+      showOverlay();
+    }
+
+    // ---------- 臭圈机制（在臭圈里“走路”扣SAN） ----------
+    // 需求：臭圈中行走减 5 SAN
+    // 实现：在臭圈内移动时按“走路距离”累积，走够一段距离就扣一次
+    function applyStinkZones(movedDist){
+      if(state.over) return;
+      // 对话时仍可移动，因此臭圈也应生效；菜单/选座暂停
+      if(ui.mode === 'menu' || ui.mode === 'seat') return;
+      if(state.screen !== 'game') return;
+      if(!movedDist || movedDist <= 0) return;
+      const m = currentMap();
+      const px = state.player.x + state.player.w/2;
+      const py = state.player.y + state.player.h/2;
+      let inAny = false;
+      // 地图臭圈
+      if(m.stinkZones){
+        for(const z of m.stinkZones){
+          const dx = px - z.x;
+          const dy = py - z.y;
+          const d = Math.hypot(dx, dy);
+          if(d <= z.r) inAny = true;
+        }
+      }
+      // NPC自带臭圈
+      if(state.npcs){
+        for(const n of state.npcs){
+          if(n.map !== state.map) continue;
+          if(!n.stinkR) continue;
+          const dx = px - (n.x + n.w/2);
+          const dy = py - (n.y + n.h/2);
+          const d = Math.hypot(dx, dy);
+          if(d <= n.stinkR) inAny = true;
+        }
+      }
+      if(!inAny) return;
+      // 需求：臭圈中行走减 3 SAN（固定值）
+      const penalty = 3;
+      stinkWalkAcc += movedDist;
+      // 走够 18 像素算“一步”（可按体验再调）
+      while(stinkWalkAcc >= 18){
+        stinkWalkAcc -= 18;
+        applySan(-penalty, 'stink');
+        logLine(`臭圈踩雷：SAN -${penalty}`);
+        state.stats.stinkHits += 1;
+        if(state.over) break;
+      }
+    }
+    let stinkWalkAcc = 0;
+
+    // ---------- 走路 ----------
+    function getMoveVector(){
+      // 先按“屏幕方向”收集输入
+      let sx = 0, sy = 0;
+      if(keys['arrowleft'] || keys['a'] || touchMove.left) sx -= 1;
+      if(keys['arrowright'] || keys['d'] || touchMove.right) sx += 1;
+      if(keys['arrowup'] || keys['w'] || touchMove.up) sy -= 1;
+      if(keys['arrowdown'] || keys['s'] || touchMove.down) sy += 1;
+
+      // 横屏放大但设备仍竖屏时，我们把画面旋转了 +90deg。
+      // 为了让“按键方向=屏幕看到的方向”，需要把输入向量旋转 -90deg 映射回世界坐标：
+      // (x,y) -> (y, -x)
+      if(document.body.classList.contains('widePortrait')){
+        const wx = sy;
+        const wy = -sx;
+        sx = wx; sy = wy;
+      }
+
+      if(sx !== 0 && sy !== 0){
+        sx *= 0.7071; sy *= 0.7071;
+      }
+      return { vx: sx, vy: sy };
+    }
+
+    function updatePlayer(dt){
+      if(state.over) return;
+      // 对话时允许继续走路（否则玩家以为卡死）；菜单/选座仍暂停
+      if(ui.mode === 'menu' || ui.mode === 'seat') return;
+      if(state.screen !== 'game') return;
+      const p = state.player;
+      const ox = p.x, oy = p.y;
+      const sp = p.speed;
+      const mv = getMoveVector();
+      const vx = mv.vx, vy = mv.vy;
+      const moving = (vx !== 0 || vy !== 0);
+      if(moving){
+        p.animT += dt * 10;
+        p.animFrame = (Math.floor(p.animT) % 2);
+      }else{
+        p.animT = 0;
+        p.animFrame = 0;
+      }
+      // 轴向移动 + 碰撞
+      p.x += vx * sp * dt;
+      clampToBounds(p);
+      collideWithWalls(p);
+      p.y += vy * sp * dt;
+      clampToBounds(p);
+      collideWithWalls(p);
+      const movedDist = Math.hypot(p.x - ox, p.y - oy);
+      return movedDist;
+    }
+
+    // ---------- 渲染 ----------
+    let timeSec = 0;
+
+    // 校园静态层缓存（大幅提升手机帧率/加载速度体感）
+    let campusCache = null;
+    let campusCacheKey = '';
+    function ensureCampusCache(){
+      const m = MAPS.campus;
+      if(!m) return;
+      // 只缓存校园；室内地图不大，无需缓存
+      if(state.map !== 'campus') return;
+
+      // cacheKey：资源加载状态变化时重建（建筑贴图加载慢时，先用占位，加载完再刷新）
+      const key = [
+        assets.campusGroundReady ? 1 : 0,
+        assets.decoReady.tree ? 1 : 0,
+        assets.decoReady.bench ? 1 : 0,
+        ...Object.keys(assets.buildingsReady).map(k => assets.buildingsReady[k] ? 1 : 0)
+      ].join('');
+      if(campusCache && campusCacheKey === key) return;
+
+      campusCacheKey = key;
+      campusCache = document.createElement('canvas');
+      campusCache.width = m.bounds.w;
+      campusCache.height = m.bounds.h;
+      const c = campusCache.getContext('2d');
+
+      // 1) 地面底图（或fallback）
+      if(assets.campusGroundReady){
+        c.imageSmoothingEnabled = false;
+        c.drawImage(assets.campusGround, 0, 0, m.bounds.w, m.bounds.h);
+        c.imageSmoothingEnabled = true;
+      }else{
+        c.fillStyle = 'rgba(16,185,129,0.08)';
+        c.fillRect(0,0,m.bounds.w,m.bounds.h);
+        if(m.paths){
+          for(const r of m.paths){
+            c.fillStyle = 'rgba(15,23,42,0.06)';
+            // 复用 roundRect 的逻辑但在缓存ctx上手写一次
+            const rr = Math.min(16, r.w/2, r.h/2);
+            c.beginPath();
+            c.moveTo(r.x+rr, r.y);
+            c.arcTo(r.x+r.w, r.y, r.x+r.w, r.y+r.h, rr);
+            c.arcTo(r.x+r.w, r.y+r.h, r.x, r.y+r.h, rr);
+            c.arcTo(r.x, r.y+r.h, r.x, r.y, rr);
+            c.arcTo(r.x, r.y, r.x+r.w, r.y, rr);
+            c.closePath();
+            c.fill();
+          }
+        }
+      }
+
+      // 2) 静态装饰：树/长椅（喷泉留给动态层）
+      if(assets.decoReady.tree){
+        for(let y=80; y<m.bounds.h-80; y+=120){
+          for(let x=80; x<m.bounds.w-80; x+=120){
+            const h = hash01(x*0.07 + y*0.11);
+            if(h < 0.72) continue;
+            const px = x + (hash01(x+y)*40-20);
+            const py = y + (hash01(x-y)*40-20);
+            // 避免树长在建筑中央（粗略：不在墙体内部）
+            let blocked = false;
+            for(const w of m.walls){
+              if(px > w.x-20 && px < w.x+w.w+20 && py > w.y-20 && py < w.y+w.h+20){
+                blocked = true; break;
+              }
+            }
+            if(blocked) continue;
+            c.drawImage(assets.deco.tree, px-26, py-52, 52, 62);
+          }
+        }
+      }
+      if(assets.decoReady.bench){
+        const spots = [
+          [680, 500],[720, 500],[1120, 500],[1160, 500],
+          [680, 640],[720, 640],[1120, 640],[1160, 640],
+        ];
+        for(const [px,py] of spots){
+          c.drawImage(assets.deco.bench, px-30, py-18, 60, 34);
+        }
+      }
+
+      // 3) 建筑贴图
+      if(m.decorations){
+        for(const d of m.decorations){
+          if(d.kind !== 'building') continue;
+          const ready = assets.buildingsReady[d.key];
+          const img = assets.buildings[d.key];
+          if(ready){
+            c.drawImage(img, d.x, d.y, d.w, d.h);
+          }else{
+            c.fillStyle = 'rgba(15,23,42,0.06)';
+            const rr = 18;
+            c.beginPath();
+            c.moveTo(d.x+rr, d.y);
+            c.arcTo(d.x+d.w, d.y, d.x+d.w, d.y+d.h, rr);
+            c.arcTo(d.x+d.w, d.y+d.h, d.x, d.y+d.h, rr);
+            c.arcTo(d.x, d.y+d.h, d.x, d.y, rr);
+            c.arcTo(d.x, d.y, d.x+d.w, d.y, rr);
+            c.closePath();
+            c.fill();
+          }
+        }
+      }
+    }
+
+    function hash01(n){
+      // 简易伪随机：0..1
+      const x = Math.sin(n) * 10000;
+      return x - Math.floor(x);
+    }
+
+    function drawTitle(){
+      // 封面图 + 轻微呼吸缩放 + 绿色雾气粒子（偏明亮）
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+
+      if(assets.splashReady){
+        const img = assets.splash;
+        const s = 1.02 + Math.sin(timeSec * 0.8) * 0.01;
+        const w = canvas.width * s;
+        const h = canvas.height * s;
+        const x = (canvas.width - w) / 2;
+        const y = (canvas.height - h) / 2;
+        ctx.globalAlpha = 0.88;
+        ctx.drawImage(img, x, y, w, h);
+        ctx.globalAlpha = 1;
+      }else{
+        ctx.fillStyle = 'rgba(15,23,42,0.75)';
+        ctx.font = '16px system-ui';
+        ctx.fillText('封面加载中…', 18, 28);
+      }
+
+      // 绿雾层
+      for(let i=0;i<18;i++){
+        const seed = i * 97.13;
+        const px = (hash01(seed+1) * canvas.width);
+        const baseY = canvas.height * (0.58 + hash01(seed+2) * 0.32);
+        const py = baseY + Math.sin(timeSec * (0.6 + hash01(seed+3)) + seed) * 8;
+        const r = 18 + hash01(seed+4) * 32;
+        ctx.beginPath();
+        ctx.arc(px, py, r, 0, Math.PI*2);
+        ctx.fillStyle = `rgba(120,255,140,${0.05 + hash01(seed+5)*0.05})`;
+        ctx.fill();
+      }
+
+      // 闪光点
+      for(let i=0;i<22;i++){
+        const seed = 999 + i * 31.7;
+        const px = hash01(seed+1) * canvas.width;
+        const py = hash01(seed+2) * canvas.height * 0.6;
+        const a = 0.18 + 0.18 * Math.sin(timeSec * (1.2 + hash01(seed+3)*1.8) + seed);
+        ctx.fillStyle = `rgba(15,23,42,${Math.max(0,a) * 0.25})`;
+        ctx.fillRect(px, py, 2, 2);
+      }
+
+      // 底部提示
+      ctx.fillStyle = 'rgba(255,255,255,0.82)';
+      ctx.fillRect(0, canvas.height-42, canvas.width, 42);
+      ctx.fillStyle = 'rgba(15,23,42,0.86)';
+      ctx.font = '12px system-ui';
+      ctx.fillText('提示：点右侧【开始/继续】按钮进入游戏（手机可直接点屏幕按钮操作）', 14, canvas.height-18);
+    }
+
+    function draw(){
+      // 背景（更明亮）
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      const g = ctx.createLinearGradient(0,0,0,canvas.height);
+      g.addColorStop(0, 'rgba(37,99,235,0.06)');
+      g.addColorStop(1, 'rgba(245,158,11,0.05)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+
+      if(state.screen !== 'game'){
+        drawTitle();
+        return;
+      }
+
+      const m = currentMap();
+
+      // 世界绘制（摄像机平移）
+      ctx.save();
+      ctx.translate(-cam.x, -cam.y);
+
+      // 地面（校园用草地/道路；室内用地板）
+      if(state.map === 'campus'){
+        // 校园静态层缓存（地面+树+长椅+建筑），手机上快很多
+        ensureCampusCache();
+        if(campusCache){
+          const oldSmooth = ctx.imageSmoothingEnabled;
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(campusCache, m.bounds.x, m.bounds.y);
+          ctx.imageSmoothingEnabled = oldSmooth;
+        }
+        // 动态装饰：喷泉水花（增强大学氛围）
+        drawCampusDeco();
+      }else{
+        ctx.fillStyle = 'rgba(15,23,42,0.03)';
+        ctx.fillRect(m.bounds.x, m.bounds.y, m.bounds.w, m.bounds.h);
+      }
+
+      // 建筑贴图/装饰：校园已在缓存里画过，这里只画室内的（避免重复绘制）
+      if(state.map !== 'campus' && m.decorations){
+        for(const d of m.decorations){
+          if(d.kind === 'building'){
+            const ready = assets.buildingsReady[d.key];
+            const img = assets.buildings[d.key];
+            if(ready){
+              ctx.drawImage(img, d.x, d.y, d.w, d.h);
+            }else{
+              ctx.fillStyle = 'rgba(15,23,42,0.06)';
+              roundRect(d.x, d.y, d.w, d.h, 18);
+            }
+          }
+        }
+      }
+
+      // 墙/建筑碰撞可视化（更淡一点，让画面更像“场景”）
+      for(const w of m.walls){
+        ctx.fillStyle = (state.map === 'campus') ? 'rgba(15,23,42,0.04)' : 'rgba(15,23,42,0.10)';
+        roundRect(w.x, w.y, w.w, w.h, 10);
+      }
+
+      // 入口（允许的更亮）
+      const allowed = getAllowedPortalIds();
+      let pi = 0;
+      for(const p of m.portals){
+        const isAllowed = allowed.has(p.id);
+        const pulse = 0.10 + 0.08 * Math.sin(timeSec * 3.0 + pi * 1.2);
+        ctx.fillStyle = isAllowed ? `rgba(37,99,235,${0.10 + pulse})` : 'rgba(15,23,42,0.04)';
+        roundRect(p.rect.x, p.rect.y, p.rect.w, p.rect.h, 10);
+        ctx.fillStyle = isAllowed ? 'rgba(37,99,235,0.92)' : 'rgba(100,116,139,0.7)';
+        ctx.font = '12px system-ui';
+        ctx.fillText(p.name, p.rect.x+8, p.rect.y + p.rect.h - 10);
+        pi++;
+      }
+
+      // 臭圈（可视化）
+      if(m.stinkZones){
+        for(const z of m.stinkZones){
+          ctx.beginPath();
+          ctx.arc(z.x, z.y, z.r, 0, Math.PI*2);
+          const wave = 0.02 + 0.02 * Math.sin(timeSec * 2.4 + z.x*0.01);
+          ctx.fillStyle = `rgba(239,68,68,${0.08 + wave})`;
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(239,68,68,0.28)';
+          ctx.stroke();
+
+          // 臭圈粒子
+          for(let i=0;i<14;i++){
+            const seed = (z.x*3.1 + z.y*7.7 + i*11.3);
+            const ang = timeSec * (0.6 + hash01(seed)*1.2) + seed;
+            const rr = (z.r * 0.15) + hash01(seed+2) * (z.r * 0.75);
+            const px = z.x + Math.cos(ang) * rr;
+            const py = z.y + Math.sin(ang*1.1) * rr * 0.7;
+            ctx.fillStyle = `rgba(16,185,129,${0.06 + hash01(seed+3)*0.08})`;
+            ctx.fillRect(px, py, 2, 2);
+          }
+        }
+      }
+
+      // NPC
+      if(state.npcs && state.npcs.length){
+        for(const n of state.npcs){
+          if(n.map !== state.map) continue;
+          const bob = Math.sin(timeSec*6 + (n.x+n.y)*0.01) * 1.2;
+          if(n.stinkR){
+            ctx.beginPath();
+            ctx.arc(n.x + n.w/2, n.y + n.h/2, n.stinkR, 0, Math.PI*2);
+            const a = 0.05 + 0.03 * Math.sin(timeSec * 3.2 + n.t);
+            ctx.fillStyle = `rgba(239,68,68,${a})`;
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(239,68,68,0.18)';
+            ctx.stroke();
+          }
+          if(assets.npcReady){
+            ctx.drawImage(assets.npcImg, n.x, n.y + bob, 18, 18);
+          }else{
+            ctx.fillStyle = n.color || 'rgba(37,99,235,0.8)';
+            roundRect(n.x, n.y + bob, n.w, n.h, 3);
+            ctx.fillStyle = 'rgba(15,23,42,0.18)';
+            ctx.fillRect(n.x+2, n.y+2+bob, 2, 2);
+          }
+        }
+      }
+
+      // 香人：只在校园出现/刷新
+      if(state.map === 'campus' && state.fragrance && state.fragrance.map === 'campus'){
+        const fx = state.fragrance.x, fy = state.fragrance.y, rr = state.fragrance.r;
+        ctx.beginPath();
+        ctx.arc(fx, fy, rr, 0, Math.PI*2);
+        // 香人圈：用紫色/粉色系，和臭圈（红）区分开
+        const a = 0.06 + 0.05 * Math.sin(timeSec * 3.0);
+        ctx.fillStyle = `rgba(168,85,247,${a})`;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(168,85,247,0.24)';
+        ctx.stroke();
+        // 香泡泡
+        for(let i=0;i<10;i++){
+          const seed = fx*0.03 + fy*0.07 + i*11.3;
+          const ang = timeSec * (0.8 + hash01(seed)*1.0) + seed;
+          const pr = rr * (0.25 + hash01(seed+2)*0.65);
+          ctx.fillStyle = `rgba(236,72,153,${0.06 + hash01(seed+3)*0.07})`;
+          ctx.fillRect(fx + Math.cos(ang)*pr, fy + Math.sin(ang*1.1)*pr, 2, 2);
+        }
+        // 人物
+        if(assets.npcReady){
+          ctx.drawImage(assets.npcImg, fx-9, fy-18, 18, 18);
+        }else{
+          ctx.fillStyle = 'rgba(168,85,247,0.95)';
+          roundRect(fx-5, fy-8, 10, 10, 3);
+        }
+      }
+
+      // 玩家
+      const pl = state.player;
+      const bob = (pl.animFrame ? 1 : 0);
+      if(assets.playerReady){
+        ctx.drawImage(assets.playerImg, pl.x-4, pl.y-8-bob, 22, 22);
+      }else{
+        ctx.fillStyle = 'rgba(16,185,129,0.95)';
+        roundRect(pl.x, pl.y - bob, pl.w, pl.h, 3);
+        ctx.fillStyle = 'rgba(15,23,42,0.18)';
+        roundRect(pl.x+pl.w-3, pl.y+2-bob, 2, 2, 1);
+        if(pl.animFrame){
+          ctx.fillStyle = 'rgba(15,23,42,0.18)';
+          ctx.fillRect(pl.x+1, pl.y+pl.h-bob, 2, 1);
+          ctx.fillRect(pl.x+pl.w-3, pl.y+pl.h-bob, 2, 1);
+        }
+      }
+
+      ctx.restore();
+
+      // 顶部地图名
+      ctx.fillStyle = 'rgba(15,23,42,0.80)';
+      ctx.font = '12px system-ui';
+      ctx.fillText(`场景：${m.name}`, 12, 18);
+
+      // 画面内状态栏（用户要求放在游戏画面中）
+      drawCanvasHUD();
+      // 小地图
+      drawMiniMap();
+    }
+
+    function drawCanvasHUD(){
+      const pad = 10;
+      // 放到底部左侧，避免遮挡视野/小地图（更适配手机）
+      const w = 360, h = 66;
+      const x = pad, y = canvas.height - h - pad;
+      // 背景
+      ctx.fillStyle = 'rgba(255,255,255,0.78)';
+      ctx.strokeStyle = 'rgba(15,23,42,0.10)';
+      roundRectStroke(x, y, w, h, 14);
+      // 文本
+      ctx.fillStyle = 'rgba(15,23,42,0.86)';
+      ctx.font = '12px system-ui';
+      ctx.fillText(`第${state.day}天  SAN ${Math.max(0,state.san)}/100  影响力 ${state.influence}  钱 ${state.money}R`, x+12, y+22);
+      ctx.fillText(`香水 ${state.inventory.perfume}  乐跑 ${state.runCount}/2  约谈 ${state.talkRisk}%`, x+12, y+42);
+      // 当前指引（缩短，避免遮挡）
+      ctx.fillStyle = 'rgba(37,99,235,0.95)';
+      ctx.font = '11px system-ui';
+      const prompt = getFlowPrompt();
+      ctx.fillText(prompt.length > 36 ? (prompt.slice(0,36) + '…') : prompt, x+12, y+58);
+    }
+
+    function roundRectStroke(x,y,w,h,r){
+      const rr = Math.min(r, w/2, h/2);
+      ctx.beginPath();
+      ctx.moveTo(x+rr, y);
+      ctx.arcTo(x+w, y, x+w, y+h, rr);
+      ctx.arcTo(x+w, y+h, x, y+h, rr);
+      ctx.arcTo(x, y+h, x, y, rr);
+      ctx.arcTo(x, y, x+w, y, rr);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    function drawMiniMap(){
+      const m = currentMap();
+      // 屏幕越大，小地图越大（更适配横屏手机）
+      const mmW = Math.min(240, Math.max(170, Math.floor(canvas.width * 0.23)));
+      const mmH = Math.min(160, Math.max(120, Math.floor(canvas.height * 0.22)));
+      const x = canvas.width - mmW - 10;
+      const y = 10;
+      ctx.fillStyle = 'rgba(255,255,255,0.82)';
+      ctx.strokeStyle = 'rgba(15,23,42,0.10)';
+      roundRectStroke(x, y, mmW, mmH, 14);
+
+      // 顶部指引条给小地图让位（动态）
+      // 让 promptBar 的 right = mmW + margin，这样永远不会挡住右上角小地图
+      if(elPromptBar){
+        elPromptBar.style.right = (mmW + 22) + 'px';
+      }
+
+      // 内容区域
+      const inner = { x: x+8, y: y+8, w: mmW-16, h: mmH-16 };
+      // 映射世界坐标 -> 小地图坐标
+      const sx = inner.w / m.bounds.w;
+      const sy = inner.h / m.bounds.h;
+      const s = Math.min(sx, sy);
+      const ox = inner.x + (inner.w - m.bounds.w*s)/2;
+      const oy = inner.y + (inner.h - m.bounds.h*s)/2;
+
+      // 地图底
+      ctx.fillStyle = 'rgba(16,185,129,0.06)';
+      ctx.fillRect(ox, oy, m.bounds.w*s, m.bounds.h*s);
+
+      // 墙体/建筑块
+      ctx.fillStyle = 'rgba(15,23,42,0.10)';
+      for(const w of m.walls){
+        ctx.fillRect(ox + w.x*s, oy + w.y*s, w.w*s, w.h*s);
+      }
+
+      // 臭圈
+      if(m.stinkZones){
+        for(const z of m.stinkZones){
+          ctx.beginPath();
+          ctx.arc(ox + z.x*s, oy + z.y*s, z.r*s, 0, Math.PI*2);
+          ctx.fillStyle = 'rgba(239,68,68,0.18)';
+          ctx.fill();
+        }
+      }
+      // NPC臭圈
+      if(state.npcs){
+        for(const n of state.npcs){
+          if(n.map !== state.map) continue;
+          if(n.stinkR){
+            ctx.beginPath();
+            ctx.arc(ox + (n.x+n.w/2)*s, oy + (n.y+n.h/2)*s, n.stinkR*s, 0, Math.PI*2);
+            ctx.fillStyle = 'rgba(239,68,68,0.10)';
+            ctx.fill();
+          }
+        }
+      }
+
+      // 视野框（摄像机）
+      ctx.strokeStyle = 'rgba(37,99,235,0.35)';
+      ctx.strokeRect(ox + cam.x*s, oy + cam.y*s, canvas.width*s, canvas.height*s);
+
+      // 玩家点
+      ctx.fillStyle = 'rgba(16,185,129,0.95)';
+      ctx.beginPath();
+      ctx.arc(ox + (state.player.x+state.player.w/2)*s, oy + (state.player.y+state.player.h/2)*s, 3, 0, Math.PI*2);
+      ctx.fill();
+
+      // NPC点
+      if(state.npcs){
+        ctx.fillStyle = 'rgba(37,99,235,0.9)';
+        for(const n of state.npcs){
+          if(n.map !== state.map) continue;
+          ctx.fillRect(ox + (n.x+n.w/2)*s - 1.5, oy + (n.y+n.h/2)*s - 1.5, 3, 3);
+        }
+      }
+
+      // 地点标注（手机也能看清）
+      ctx.font = '10px system-ui';
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'center';
+      const label = (tx, ty, text) => {
+        // 背景描边
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        ctx.strokeStyle = 'rgba(15,23,42,0.18)';
+        const w = ctx.measureText(text).width + 8;
+        const h = 14;
+        roundRectStroke(tx - w/2, ty - h/2, w, h, 6);
+        ctx.fillStyle = 'rgba(15,23,42,0.86)';
+        ctx.fillText(text, tx, ty+0.5);
+      };
+
+      // 香人（紫粉圈）：放在 label 定义之后，避免引用未定义导致整局卡死
+      if(state.map === 'campus' && state.fragrance && state.fragrance.map === 'campus'){
+        ctx.beginPath();
+        ctx.arc(ox + state.fragrance.x*s, oy + state.fragrance.y*s, state.fragrance.r*s, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(168,85,247,0.14)';
+        ctx.fill();
+        ctx.fillStyle = 'rgba(168,85,247,0.95)';
+        ctx.fillRect(ox + state.fragrance.x*s - 1.5, oy + state.fragrance.y*s - 1.5, 3, 3);
+        label(ox + state.fragrance.x*s, oy + state.fragrance.y*s - 10, '香人');
+      }
+      if(m.portals){
+        for(const p of m.portals){
+          if(state.map !== 'campus' && p.id !== 'back') continue;
+          const cx = p.rect.x + p.rect.w/2;
+          const cy = p.rect.y + p.rect.h/2;
+          const tx = ox + cx*s;
+          const ty = oy + cy*s;
+          label(tx, ty - 10, p.name);
+        }
+      }
+    }
+
+    function roundRect(x,y,w,h,r){
+      const rr = Math.min(r, w/2, h/2);
+      ctx.beginPath();
+      ctx.moveTo(x+rr, y);
+      ctx.arcTo(x+w, y, x+w, y+h, rr);
+      ctx.arcTo(x+w, y+h, x, y+h, rr);
+      ctx.arcTo(x, y+h, x, y, rr);
+      ctx.arcTo(x, y, x+w, y, rr);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function drawCampusDeco(){
+      // 校园动态装饰：喷泉水花（树/长椅等静态元素已缓存到 campusCache）
+      const vx0 = cam.x - 100, vy0 = cam.y - 100;
+      const vx1 = cam.x + canvas.width + 100;
+      const vy1 = cam.y + canvas.height + 100;
+
+      // 中央喷泉（简单画法：大学氛围）
+      const fx = 1050, fy = 585;
+      if(fx>vx0 && fx<vx1 && fy>vy0 && fy<vy1){
+        ctx.beginPath();
+        ctx.arc(fx, fy, 26, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(37,99,235,0.10)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(37,99,235,0.18)';
+        ctx.stroke();
+        // 水花点点
+        for(let i=0;i<10;i++){
+          const ang = timeSec*1.6 + i*0.7;
+          ctx.fillStyle = 'rgba(37,99,235,0.35)';
+          ctx.fillRect(fx + Math.cos(ang)*14, fy + Math.sin(ang)*10, 2, 2);
+        }
+      }
+    }
+
+    // ---------- 工具 ----------
+    function randInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
+    function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+    function sample(arr,n){
+      const a = arr.slice();
+      for(let i=a.length-1;i>0;i--){
+        const j = Math.floor(Math.random()*(i+1));
+        [a[i],a[j]]=[a[j],a[i]];
+      }
+      return a.slice(0,n);
+    }
+
+    // ---------- 香水 ----------
+    btnUsePerfume.addEventListener('click', () => {
+      if(state.inventory.perfume <= 0 || state.over) return;
+      state.inventory.perfume -= 1;
+      state.buff.freshSeconds = Math.max(state.buff.freshSeconds, 45); // 45秒
+      logLine('使用香水：清新BUFF（45秒内臭圈掉SAN减半，选座扣SAN减半）');
+      sfx('use');
+      updateHUD();
+      updateFlowPrompt();
+    });
+    btnSave.addEventListener('click', () => saveGame());
+    btnClear.addEventListener('click', () => clearSave());
+    btnInteract.addEventListener('click', () => interact());
+    function openScheduleDialog(){
+      if(!state.schedule){
+        openDialog({ title:'课表', text:'课表还没生成，先开始新的一天吧。', choices:[{ label:'好', primary:true, onSelect: () => ui.mode='play' }] });
+        return;
+      }
+      const s = state.schedule;
+      const p = state.phase;
+      const half = (p === 'morning' || p === 'afternoon') ? p : null;
+      openDialog({
+        title: '今日课表',
+        text: '（带“进行中”的是当前时段；体育课要去操场）',
+        customRender: () => {
+          const wrap = document.createElement('div');
+          wrap.className = 'schedulePanel';
+          wrap.style.background = 'rgba(255,255,255,0.75)';
+          wrap.style.borderColor = 'rgba(15,23,42,0.10)';
+          const h = document.createElement('div');
+          h.className = 'h';
+          h.innerHTML = `第${state.day}天课表 <span style="color:rgba(15,23,42,0.55);font-weight:700;">${half==='morning'?'上午':(half==='afternoon'?'下午':'今日')}</span>`;
+          const rows = document.createElement('div');
+          rows.className = 'rows';
+          const addHalf = (key,label) => {
+            const arr = s[key] || [];
+            for(let i=0;i<arr.length;i++){
+              const slot = arr[i];
+              const course = slot.kind === 'class' ? slot.course : '空课';
+              const showCourse = (slot.kind === 'class' && slot.course === '体育课') ? '体育课（去操场）' : course;
+              const isCurrent = (half === key && state.slotIdx === i && !slot.done);
+              const div = document.createElement('div');
+              div.className = 'scheduleRow' + (slot.done ? ' done' : '') + (isCurrent ? ' current' : '');
+              div.innerHTML = `<div class="left"><span class="tag">${label}${i+1}</span><span>${escapeHtml(showCourse)}</span></div><span style="color:rgba(15,23,42,0.55)">${slot.done?'已完成':(isCurrent?'进行中':'')}</span>`;
+              rows.appendChild(div);
+            }
+          };
+          addHalf('morning','上');
+          addHalf('afternoon','下');
+          wrap.appendChild(h);
+          wrap.appendChild(rows);
+          elOvCustom.appendChild(wrap);
+        },
+        choices: [{ label:'关闭', primary:true, onSelect: () => { ui.mode='play'; } }]
+      });
+    }
+    btnSchedule?.addEventListener('click', () => openScheduleDialog());
+    btnMenu.addEventListener('click', () => {
+      if(ui.mode === 'play') openMenu();
+      else { ui.mode = 'play'; ui.seat = null; hideOverlay(); }
+      updateFlowPrompt();
+    });
+    async function toggleWideMode(){
+      const toOn = !document.body.classList.contains('wideMode');
+      document.body.classList.toggle('wideMode', toOn);
+      if(toOn){
+        // 尝试全屏 + 横屏锁定（不同手机/浏览器支持不同，失败也不影响）
+        try{
+          await (document.getElementById('gameStage').requestFullscreen?.() || document.documentElement.requestFullscreen?.());
+        }catch(e){}
+        try{ await screen.orientation?.lock?.('landscape'); }catch(e){}
+        applyWideLayout();
+      }else{
+        try{ await document.exitFullscreen?.(); }catch(e){}
+        try{ screen.orientation?.unlock?.(); }catch(e){}
+        document.body.classList.remove('widePortrait');
+        document.documentElement.style.removeProperty('--wideScale');
+        document.documentElement.style.removeProperty('--wideTx');
+        document.documentElement.style.removeProperty('--wideTy');
+      }
+    }
+    btnWide?.addEventListener('click', () => toggleWideMode());
+    btnWide2?.addEventListener('click', () => toggleWideMode());
+
+    // 开始界面按钮（双保险：即使你关掉弹窗，也能从这里开始/继续）
+    function updateTitleStart(){
+      const show = (state.screen === 'title' && ui.mode === 'play');
+      elTitleStart?.classList.toggle('hidden', !show);
+      if(!show) return;
+      const has = !!loadGame();
+      if(btnContinueGame) btnContinueGame.style.display = has ? '' : 'none';
+    }
+    btnStartGame?.addEventListener('click', () => {
+      state = newState();
+      state.screen = 'game';
+      ui.mode = 'play';
+      hideOverlay();
+      logLine('新游戏开始。');
+      startDay();
+      updateFlowPrompt();
+      updateTitleStart();
+    });
+    btnContinueGame?.addEventListener('click', () => {
+      const saved = loadGame();
+      if(!saved) return;
+      state = normalizeLoadedState(saved);
+      ui.mode = 'play';
+      hideOverlay();
+      logLine('继续游戏。');
+      updateFlowPrompt();
+      updateTitleStart();
+    });
+
+    function applyWideLayout(){
+      if(!document.body.classList.contains('wideMode')) return;
+      // 如果设备本身已横屏，就不旋转；如果仍竖屏，就旋转画布“横屏显示”
+      const vw = (window.visualViewport?.width || window.innerWidth);
+      const vh = (window.visualViewport?.height || window.innerHeight);
+      const portrait = vh > vw;
+      document.body.classList.toggle('widePortrait', portrait);
+
+      // 计算缩放：保证内容完整显示
+      // 不旋转：按 canvas width/height 适配
+      // 旋转 90 度：宽高互换
+      const cw = canvas.width;
+      const ch = canvas.height;
+      const targetW = portrait ? ch : cw;
+      const targetH = portrait ? cw : ch;
+      // 留一点安全边距，避免被浏览器底部/顶部栏遮住
+      const scale = Math.min(vw / targetW, vh / targetH) * 0.98;
+
+      document.documentElement.style.setProperty('--wideScale', String(scale));
+    }
+    window.addEventListener('resize', () => applyWideLayout(), { passive:true });
+    window.addEventListener('orientationchange', () => setTimeout(applyWideLayout, 120));
+
+    // 点画面也能唤起开始菜单（手机更直觉）
+    canvas.addEventListener('pointerdown', () => {
+      if(state.screen === 'title' && ui.mode === 'play'){
+        showTitleMenu(loadGame());
+      }
+    });
+
+    btnOvClose.addEventListener('click', () => {
+      ui.mode = 'play';
+      ui.seat = null;
+      hideOverlay();
+      updateFlowPrompt();
+    });
+
+    // 触屏摇杆：拖动控制方向（更适合手机）
+    const joyState = { active:false, pid:null, cx:0, cy:0, r:56 };
+    function joyReset(){
+      touchMove.up = touchMove.down = touchMove.left = touchMove.right = false;
+      joyState.active = false;
+      joyState.pid = null;
+      if(elJoyKnob) elJoyKnob.style.transform = 'translate(-50%,-50%)';
+    }
+    function joyUpdate(dx, dy){
+      const dead = 0.22; // 死区（比例）
+      const nx = dx / joyState.r;
+      const ny = dy / joyState.r;
+      touchMove.left = nx < -dead;
+      touchMove.right = nx > dead;
+      touchMove.up = ny < -dead;
+      touchMove.down = ny > dead;
+    }
+    if(elJoy){
+      elJoy.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        const rect = elJoy.getBoundingClientRect();
+        joyState.active = true;
+        joyState.pid = e.pointerId;
+        // 半径按容器动态计算
+        joyState.r = Math.max(36, Math.min(rect.width, rect.height) * 0.33);
+        joyState.cx = rect.left + rect.width/2;
+        joyState.cy = rect.top + rect.height/2;
+        elJoy.setPointerCapture?.(e.pointerId);
+      });
+      elJoy.addEventListener('pointermove', (e) => {
+        if(!joyState.active || e.pointerId !== joyState.pid) return;
+        e.preventDefault();
+        const dx0 = e.clientX - joyState.cx;
+        const dy0 = e.clientY - joyState.cy;
+        const d = Math.hypot(dx0, dy0);
+        const maxD = joyState.r;
+        const k = d > maxD ? (maxD / d) : 1;
+        const dx = dx0 * k;
+        const dy = dy0 * k;
+        if(elJoyKnob){
+          elJoyKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+        }
+        joyUpdate(dx, dy);
+      });
+      const up = (e) => {
+        if(e.pointerId !== joyState.pid) return;
+        e.preventDefault();
+        joyReset();
+      };
+      elJoy.addEventListener('pointerup', up);
+      elJoy.addEventListener('pointercancel', up);
+      elJoy.addEventListener('pointerleave', up);
+
+      // iOS 部分环境 pointer 事件支持不稳定：补一套 touch 事件兜底
+      const touchStart = (e) => {
+        e.preventDefault();
+        const t = e.touches?.[0];
+        if(!t) return;
+        const rect = elJoy.getBoundingClientRect();
+        joyState.active = true;
+        joyState.pid = 'touch';
+        joyState.r = Math.max(36, Math.min(rect.width, rect.height) * 0.33);
+        joyState.cx = rect.left + rect.width/2;
+        joyState.cy = rect.top + rect.height/2;
+      };
+      const touchMove = (e) => {
+        if(!joyState.active || joyState.pid !== 'touch') return;
+        e.preventDefault();
+        const t = e.touches?.[0];
+        if(!t) return;
+        const dx0 = t.clientX - joyState.cx;
+        const dy0 = t.clientY - joyState.cy;
+        const d = Math.hypot(dx0, dy0);
+        const maxD = joyState.r;
+        const k = d > maxD ? (maxD / d) : 1;
+        const dx = dx0 * k;
+        const dy = dy0 * k;
+        if(elJoyKnob){
+          elJoyKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+        }
+        joyUpdate(dx, dy);
+      };
+      const touchEnd = (e) => {
+        if(joyState.pid !== 'touch') return;
+        e.preventDefault();
+        joyReset();
+      };
+      elJoy.addEventListener('touchstart', touchStart, { passive:false });
+      elJoy.addEventListener('touchmove', touchMove, { passive:false });
+      elJoy.addEventListener('touchend', touchEnd, { passive:false });
+      elJoy.addEventListener('touchcancel', touchEnd, { passive:false });
+    }
+
+    // ---------- 主循环 ----------
+    let last = performance.now();
+
+    function assetsReadyForGame(){
+      // 只要关键资源就绪即可进入（其余可边玩边加载）
+      // - 校园底图（可选）
+      // - 玩家/NPC（可选）
+      // - 至少一个建筑贴图（否则会退化为块）
+      const anyBuilding = Object.values(assets.buildingsReady || {}).some(Boolean);
+      return !!anyBuilding;
+    }
+
+    function drawLoading(){
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      // 简单 loading 动画
+      const cx = canvas.width/2, cy = canvas.height/2;
+      const r = 28;
+      ctx.strokeStyle = 'rgba(37,99,235,0.35)';
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI*2);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(37,99,235,0.95)';
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, -Math.PI/2, -Math.PI/2 + (Math.sin(timeSec*2.2)*0.6+0.8)*Math.PI);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(15,23,42,0.82)';
+      ctx.font = '16px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText('场景加载中…', cx, cy + 62);
+      ctx.font = '12px system-ui';
+      ctx.fillStyle = 'rgba(15,23,42,0.65)';
+      ctx.fillText('第一次打开会慢一点，稍等～', cx, cy + 84);
+      ctx.textAlign = 'left';
+    }
+
+    function tick(now){
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      timeSec += dt;
+
+      if(portalCooldown > 0) portalCooldown = Math.max(0, portalCooldown - dt);
+
+      // Buff倒计时
+      if(ui.mode === 'play' && state.buff.freshSeconds > 0){
+        state.buff.freshSeconds = Math.max(0, state.buff.freshSeconds - dt);
+      }
+
+      const movedDist = updatePlayer(dt) || 0;
+      // 走进门就自动进场景
+      if(movedDist > 0) autoEnterPortal();
+      updateFragrance(dt);
+      updateNPCs(dt);
+      updateCamera();
+      applyStinkZones(movedDist);
+      // 加载慢：先给 Loading 反馈，避免白屏“像卡死”
+      if(state.screen === 'game' && !assetsReadyForGame()){
+        drawLoading();
+      }else{
+        draw();
+      }
+      // SAN 上限 100
+      if(state.san > 100) state.san = 100;
+      updateHUD();
+      updateFlowPrompt();
+      updateTitleStart();
+      requestAnimationFrame(tick);
+    }
+
+    // ---------- 结算 ----------
+    function endGame(){
+      // 硬性条件：乐跑>=2，否则SAN-20
+      if(state.runCount < 2){
+        applySan(-20, 'deadline5');
+        logLine('结算：乐跑未达2次 → SAN -20');
+        if(state.over) return;
+      }
+      if(!state.over){
+        state.over = true;
+        // 通关结局更细分一点（更有刷关动力）
+        if(state.stats.smokeEncounters === 0) state.ending = '天选之子';
+        else if(state.talkTimes >= 3 && state.influence === 0) state.ending = '导员的救赎';
+        else if(state.influence === 0 && state.san <= 10) state.ending = '边缘行者';
+        else if(state.influence === 0) state.ending = '出淤泥而不染';
+        else if(state.san <= 20) state.ending = '劫后余生';
+        else if(state.san <= 60) state.ending = '侥幸存活';
+        else state.ending = '还挺精神';
+      }
+      showResultScreen(true);
+    }
+
+    function computeAchievements(){
+      const got = [];
+      const hint = [];
+
+      // 生命在于运动：未到5天就死但跑够2次（这里用 day<5 且 over 且 runCount>=2）
+      if(state.over && state.day < state.maxDay && state.runCount >= 2){
+        got.push({ name:'生命在于运动', stars:3, desc:'只活了几天，但KPI拉满。' });
+      }else{
+        hint.push('想要「生命在于运动」：提前倒下前跑够2次乐跑。');
+      }
+
+      if(state.talkTimes >= 3){
+        got.push({ name:'不知悔改', stars:3, desc:'导员看到你就下意识翻记录本。' });
+      }else{
+        hint.push(`想要「不知悔改」：被约谈 ≥ 3 次（当前 ${state.talkTimes} 次）。`);
+      }
+
+      if(state.stats.showers >= 5){
+        got.push({ name:'澡堂钉子户', stars:2, desc:'澡堂开始怀疑你住在更衣柜。' });
+      }else{
+        hint.push(`想要「澡堂钉子户」：单局洗澡 5 次（当前 ${state.stats.showers} 次）。`);
+      }
+
+      if(state.stats.forcedSeats >= 3){
+        got.push({ name:'嗅觉PTSD', stars:3, desc:'强制落座三连，你开始反思人生。' });
+      }else{
+        hint.push(`想要「嗅觉PTSD」：强制落座 ≥ 3 次（当前 ${state.stats.forcedSeats} 次）。`);
+      }
+
+      if(state.stats.smokeEncounters >= 6){
+        got.push({ name:'烟人吸引体质', stars:2, desc:'烟人都觉得你是自己人。' });
+      }else{
+        hint.push(`想要「烟人吸引体质」：遭遇烟人 ≥ 6 次（当前 ${state.stats.smokeEncounters} 次）。`);
+      }
+
+      if(state.stats.happyWaters >= 2){
+        got.push({ name:'小卖部VIP', stars:3, desc:'阿姨：这学期KPI全靠你。' });
+      }else{
+        hint.push(`想要「小卖部VIP」：买快乐水 ≥ 2 瓶（当前 ${state.stats.happyWaters} 瓶）。`);
+      }
+
+      return { got, hint };
+    }
+
+    function starText(n){
+      return '⭐'.repeat(Math.max(0, Math.min(5, n)));
+    }
+
+    function runAgain(){
+      // 再来一局：不依赖存档，直接新开（更像刷关）
+      state = newState();
+      state.screen = 'game';
+      ui.mode = 'play';
+      hideOverlay();
+      logLine('再来一局！');
+      startDay();
+      updateFlowPrompt();
+    }
+
+    function showResultScreen(reachedDay5){
+      // 成就计算
+      const { got, hint } = computeAchievements();
+
+      function endingFlavor(e){
+        const map = {
+          '咫尺成功': '你离胜利只差一口气。\n系统：差一点点，就差一点点！',
+          '中道崩殂': '你倒在了路上。\n系统：人生就像选座位，坐错一次就很难翻身。',
+          '肺部感染': '空气把你击倒了。\n系统：建议下局带个口罩（以及信念）。',
+          '三和大神': '“你选择了留下，烟雾选择了你。”\n你倒在放风的最后一秒，手里还攥着快乐水。',
+          '食堂惨案': '饥饿和异味一起出手。\n后来同学路过食堂角落都会下意识绕开。',
+          '烟雾缭绕': '你不是被熏倒的。\n你是被烟人当成同类，拉去阳台开会了。',
+          '导员之友': '辅导员在你的档案上批注：此生已尽力，奈何味太重。',
+          '出淤泥而不染': '你在异味与现实的夹缝里，保持了最后的体面。',
+          '劫后余生': '你活下来了，但精神值也只剩“坚持”。',
+          '侥幸存活': '侥幸，也是实力的一部分。\n系统：下局试试冲更高评分？',
+          '边缘行者': '你在崩溃边缘反复横跳，却始终保持一尘不染。',
+          '导员的救赎': '多次谈话，终能改过自新。\n（你不知道的是：你已经写进了案例。）',
+          '天选之子': '全校都知道烟人的存在，只有你一脸茫然。',
+          '还挺精神': '你不仅活着，还挺有精神。\n系统：建议趁热冲“5星”。'
+        };
+        return map[e] || '你写下了属于自己的味道传说。';
+      }
+
+      // 一个小小的“称号”（刷关诱因）
+      let title = '气味练习生';
+      if(state.influence === 0 && reachedDay5) title = '洁净系天选之子';
+      else if(state.stats.smokeEncounters >= 6) title = '烟雾社交家';
+      else if(state.stats.forcedSeats >= 3) title = '强制落座收藏家';
+      else if(state.stats.stinkHits >= 8) title = '臭圈舞王';
+      else if(state.stats.happyWaters >= 2) title = '快乐水投资人';
+
+      // 评分：简单但有“刷星”感
+      let stars = 1;
+      if(reachedDay5) stars = 2;
+      if(reachedDay5 && state.runCount >= 2) stars = 3;
+      if(reachedDay5 && state.runCount >= 2 && state.san >= 60) stars = 4;
+      if(reachedDay5 && state.runCount >= 2 && state.influence === 0) stars = 5;
+
+      openDialog({
+        title: reachedDay5 ? '结算：你活到第5天了！' : '结算：你倒下了…',
+        text:
+`【结局】${state.ending}
+${endingFlavor(state.ending)}
+【本局称号】${title}
+【评分】${starText(stars)}
+
+提示：想刷不同结局/成就？换策略再来一局。`,
+        customRender: () => {
+          // 彩纸屑
+          const conf = document.createElement('div');
+          conf.className = 'confetti';
+          const colors = ['#2563eb','#10b981','#f59e0b','#ef4444','#a855f7','#06b6d4'];
+          for(let i=0;i<18;i++){
+            const piece = document.createElement('i');
+            piece.style.left = (Math.random()*100).toFixed(1) + '%';
+            piece.style.background = colors[i % colors.length];
+            piece.style.animationDelay = (Math.random()*0.8).toFixed(2) + 's';
+            piece.style.animationDuration = (1.4 + Math.random()*1.3).toFixed(2) + 's';
+            piece.style.transform = `rotate(${Math.random()*180}deg)`;
+            conf.appendChild(piece);
+          }
+          elOvCustom.appendChild(conf);
+
+          // 统计
+          const grid = document.createElement('div');
+          grid.className = 'statGrid';
+          grid.innerHTML = `
+            <div class="stat"><div class="k">SAN（最终）</div><div class="v">${Math.max(0, state.san)}/100</div></div>
+            <div class="stat"><div class="k">影响力（最终）</div><div class="v">${state.influence}</div></div>
+            <div class="stat"><div class="k">乐跑</div><div class="v">${state.runCount}/2</div></div>
+            <div class="stat"><div class="k">臭圈踩雷</div><div class="v">${state.stats.stinkHits} 次</div></div>
+          `;
+          elOvCustom.appendChild(grid);
+
+          // 成就徽章
+          const badgeTitle = document.createElement('div');
+          badgeTitle.style.marginTop = '10px';
+          badgeTitle.style.fontWeight = '800';
+          badgeTitle.textContent = `成就（已达成 ${got.length} 个）`;
+          elOvCustom.appendChild(badgeTitle);
+
+          const row = document.createElement('div');
+          row.className = 'badgeRow';
+          if(got.length === 0){
+            const none = document.createElement('div');
+            none.style.color = 'rgba(15,23,42,0.70)';
+            none.textContent = '这局暂时没解锁成就，但别慌——下一局更狠。';
+            elOvCustom.appendChild(none);
+          }else{
+            for(const a of got){
+              const chip = document.createElement('div');
+              chip.className = 'badgeChip';
+              chip.innerHTML = `<b>${a.name}</b> ${starText(a.stars)} · ${a.desc}`;
+              row.appendChild(chip);
+            }
+            elOvCustom.appendChild(row);
+          }
+
+          // 提示（给刷关目标）
+          const hintBox = document.createElement('div');
+          hintBox.style.marginTop = '10px';
+          hintBox.style.color = 'rgba(15,23,42,0.78)';
+          hintBox.style.fontSize = '12px';
+          hintBox.style.whiteSpace = 'pre-wrap';
+          hintBox.textContent = `下局可尝试：\n- ${hint.slice(0,3).join('\n- ')}`;
+          elOvCustom.appendChild(hintBox);
+        },
+        choices: [
+          { label:'再来一局（立即开刷）', primary:true, onSelect: () => runAgain() },
+          { label:'保存这局（存档）', onSelect: () => saveGame() },
+          { label:'回到封面', onSelect: () => showTitleMenu(loadGame()) },
+        ]
+      });
+    }
+
+    function normalizeLoadedState(s){
+      // 兼容旧存档缺字段
+      const base = newState();
+      const merged = Object.assign(base, s || {});
+      merged.screen = 'game';
+      if(!merged.stats){
+        merged.stats = { stinkHits:0, forcedSeats:0, smokeEncounters:0, happyWaters:0, showers:0 };
+      }else{
+        merged.stats.stinkHits ??= 0;
+        merged.stats.forcedSeats ??= 0;
+        merged.stats.smokeEncounters ??= 0;
+        merged.stats.happyWaters ??= 0;
+        merged.stats.showers ??= 0;
+      }
+      // 旧版本可能没有三餐标记：保守起见，按当前phase推断
+      if(typeof merged.needBreakfast !== 'boolean') merged.needBreakfast = (merged.phase === 'morning');
+      if(typeof merged.needLunch !== 'boolean') merged.needLunch = (merged.phase === 'noon');
+      if(typeof merged.needDinner !== 'boolean') merged.needDinner = (merged.phase === 'evening');
+      if(!Array.isArray(merged.npcs)) merged.npcs = [];
+      if(!merged.fragrance) merged.fragrance = { map: merged.map || 'campus', x: 900, y: 560, r: 48, ttl: 0, claimed: false };
+      return merged;
+    }
+
+    function showTitleMenu(saved){
+      state.screen = 'title';
+      updateFlowPrompt();
+      const has = !!saved;
+      openDialog({
+        title: '异闻录（校园日程生存）',
+        text:
+`一个关于“异味”与“校园日程”的生存小游戏。\n
+要点：\n- 入口会按时间段锁定（只能去该去的地方）\n- 臭圈会持续掉SAN（香水可减免）\n- 上课必选座（移动视野也算步数）\n\n贴图资源位：同目录的 assets/ 里放 player.png / npc.png / building_*.png 即可替换贴图。\n`,
+        choices: [
+          has ? { label:'继续游戏', primary:true, onSelect: () => {
+            state = normalizeLoadedState(saved);
+            ui.mode = 'play';
+            hideOverlay();
+            logLine('继续游戏。');
+            updateFlowPrompt();
+          }} : null,
+          { label:'开始游戏', primary: !has, onSelect: () => {
+            state = newState();
+            state.screen = 'game';
+            ui.mode = 'play';
+            hideOverlay();
+            logLine('新游戏开始。');
+            startDay();
+            updateFlowPrompt();
+          }},
+        ].filter(Boolean)
+      });
+    }
+
+    // ---------- 启动 ----------
+    const saved = loadGame();
+    if(saved){
+      // 不自动进游戏：先上封面
+      state = Object.assign(newState(), saved);
+    }
+    showTitleMenu(saved);
+    updateHUD();
+    requestAnimationFrame(tick);
+  </script>
+</body>
+</html>
