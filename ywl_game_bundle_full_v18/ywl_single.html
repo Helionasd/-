@@ -1,0 +1,2597 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <title>异闻录 · 日程叙事模式</title>
+    <style>
+/* 异闻录 · Web Demo UI
+ * 视觉基调：雾感、冷色、霓绿点火，少卡片、强排版、轻动效
+ */
+
+:root{
+  /* 统一到像素模式的“明亮校园”基调 */
+  --bg0:#f6f8fc;
+  --bg1:#ffffff;
+  --ink:rgba(15,23,42,.92);
+  --muted:rgba(15,23,42,.70);
+  --faint:rgba(15,23,42,.55);
+  --line:rgba(15,23,42,.12);
+  --glass:rgba(255,255,255,.72);
+  --glass2:rgba(255,255,255,.88);
+  --accent:#2563eb;
+  --accent2:#a855f7;
+  --danger:#ef4444;
+  --warn:#f59e0b;
+  --shadow:0 18px 60px rgba(15,23,42,.14);
+  --radius:18px;
+  --radius2:26px;
+  --font: ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", Arial, sans-serif;
+}
+
+*{ box-sizing:border-box; }
+html,body{ height:100%; }
+body{
+  margin:0;
+  font-family:var(--font);
+  background:
+    radial-gradient(900px 560px at 18% 10%, rgba(37,99,235,0.10), transparent 55%),
+    radial-gradient(900px 560px at 80% 18%, rgba(168,85,247,0.10), transparent 55%),
+    linear-gradient(180deg, var(--bg0), var(--bg1));
+  color:var(--ink);
+  overflow:hidden;
+}
+code{ color:var(--accent); }
+
+.app{ height:100%; width:100%; position:relative; }
+.screen{ position:absolute; inset:0; display:none; }
+.app[data-screen="title"] #screen-title{ display:block; }
+.app[data-screen="game"] #screen-game{ display:block; }
+.app[data-screen="end"] #screen-end{ display:block; }
+.app[data-screen="achievements"] #screen-achievements{ display:block; }
+
+/* Background layers */
+.bg{ position:absolute; inset:0; background-size:cover; background-position:center; transform:scale(1.03); }
+.bg::after{
+  content:""; position:absolute; inset:0;
+  background:
+    radial-gradient(900px 560px at 25% 10%, rgba(255,255,255,.10), rgba(255,255,255,.70) 60%),
+    linear-gradient(180deg, rgba(246,248,252,.60), rgba(255,255,255,.86));
+}
+/* 使用像素模式同目录资源，保证“同一世界观”观感 */
+.bg-title{
+  background-image:
+    url("ywl_splash.jpg");
+}
+.bg-game{
+  background-image:
+    url("assets/campus_ground.jpg");
+}
+
+.screen-title, .screen-end, .screen-achievements{ overflow:auto; }
+
+/* Buttons */
+.btn{
+  appearance:none; border:1px solid var(--line);
+  background: rgba(18,22,28,.45);
+  color: var(--ink);
+  padding: 12px 14px;
+  border-radius: 14px;
+  cursor:pointer;
+  font-weight:650;
+  letter-spacing:.2px;
+  transition: transform .16s ease, background .16s ease, border-color .16s ease, box-shadow .16s ease;
+  backdrop-filter: blur(10px);
+}
+.btn:hover{ transform: translateY(-1px); border-color: rgba(99,255,183,.40); box-shadow: 0 18px 40px rgba(0,0,0,.35); }
+.btn:active{ transform: translateY(0px) scale(.99); }
+.btn:disabled{ opacity:.45; cursor:not-allowed; transform:none; box-shadow:none; }
+
+.btn-primary{
+  border-color: rgba(99,255,183,.55);
+  background: linear-gradient(135deg, rgba(99,255,183,.18), rgba(139,225,255,.14));
+}
+.btn-ghost{ background: rgba(10,14,18,.20); }
+.btn-quiet{ background: transparent; border-color: rgba(232,238,252,.08); color: var(--muted); }
+
+.icon-btn{
+  border:none; background: transparent; color: var(--muted);
+  font-size: 18px; cursor:pointer;
+  padding: 8px 10px; border-radius: 12px;
+}
+.icon-btn:hover{ background: rgba(232,238,252,.08); color: var(--ink); }
+
+/* Title */
+.title-header{
+  position:relative;
+  min-height: 100svh;
+  display:grid;
+  grid-template-columns: minmax(280px, 560px) minmax(260px, 420px);
+  gap: 40px;
+  align-items:center;
+  padding: min(9vh, 72px) clamp(18px, 4vw, 64px);
+}
+.brand{ display:flex; gap: 18px; align-items:flex-start; }
+.brand-mark{
+  width: 56px; height: 56px; border-radius: 16px;
+  background:
+    radial-gradient(12px 12px at 35% 30%, rgba(99,255,183,.95), transparent 55%),
+    radial-gradient(18px 18px at 70% 55%, rgba(139,225,255,.85), transparent 60%),
+    linear-gradient(135deg, rgba(255,255,255,.12), rgba(255,255,255,0));
+  border: 1px solid rgba(99,255,183,.28);
+  box-shadow: 0 22px 60px rgba(0,0,0,.55);
+}
+.brand-kicker{
+  font-size: 12px;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: rgba(232,238,252,.62);
+  margin-bottom: 10px;
+}
+.brand-title{
+  margin:0;
+  font-size: clamp(44px, 6vw, 78px);
+  line-height: 1.02;
+  letter-spacing: .02em;
+  text-shadow: 0 22px 60px rgba(0,0,0,.55);
+}
+.brand-sub{
+  margin: 12px 0 0;
+  max-width: 34ch;
+  color: rgba(232,238,252,.78);
+  font-size: 14px;
+}
+
+.title-actions{
+  justify-self:end;
+  width: min(420px, 100%);
+  display:flex;
+  flex-direction:column;
+  gap: 12px;
+}
+.title-row{ display:flex; gap: 10px; }
+.title-footer{
+  position:absolute; left: clamp(18px, 4vw, 64px); right: clamp(18px, 4vw, 64px);
+  bottom: 18px;
+  display:flex; justify-content:space-between; align-items:center;
+  color: rgba(232,238,252,.55);
+  font-size: 12px;
+}
+.hint{
+  border: 1px solid rgba(232,238,252,.10);
+  background: rgba(8,10,14,.35);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  padding: 10px 12px;
+}
+
+/* Game layout */
+.game-shell{
+  position:relative;
+  height:100%;
+  display:flex;
+  flex-direction:column;
+  padding: 18px;
+  gap: 14px;
+}
+.hud{
+  display:flex; align-items:center; justify-content:space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(232,238,252,.10);
+  background: rgba(8,10,14,.35);
+  border-radius: 18px;
+  backdrop-filter: blur(12px);
+}
+.hud-left, .hud-right{ display:flex; align-items:center; gap: 10px; flex-wrap:wrap; }
+
+.pill{
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(232,238,252,.12);
+  background: rgba(10,14,18,.22);
+  color: rgba(232,238,252,.80);
+}
+.pill-muted{ color: rgba(232,238,252,.62); }
+
+.stat{
+  display:flex; align-items:baseline; gap: 8px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(232,238,252,.10);
+  background: rgba(10,14,18,.18);
+}
+.stat-wide{ min-width: 120px; justify-content:space-between; }
+.stat-k{
+  font-size: 11px;
+  letter-spacing: .14em;
+  color: rgba(232,238,252,.62);
+}
+.stat-v{
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  font-weight: 740;
+}
+
+.main{
+  height: calc(100% - 90px);
+  display:grid;
+  grid-template-columns: minmax(220px, 300px) minmax(360px, 1fr) minmax(260px, 340px);
+  gap: 14px;
+}
+
+.panel{
+  height:100%;
+  border-radius: var(--radius2);
+  border: 1px solid rgba(232,238,252,.10);
+  background: rgba(8,10,14,.40);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--shadow);
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+.panel-title{
+  padding: 12px 14px;
+  font-weight: 760;
+  letter-spacing: .02em;
+  border-bottom: 1px solid rgba(232,238,252,.10);
+  background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0));
+}
+.panel-body{ padding: 14px; display:flex; flex-direction:column; gap: 12px; }
+.panel-divider{ height:1px; background: rgba(232,238,252,.10); margin: 10px 14px; }
+
+.schedule{ padding: 12px 14px; display:flex; flex-direction:column; gap: 10px; }
+.slot{
+  display:flex; gap: 10px; align-items:flex-start;
+  padding: 10px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(232,238,252,.10);
+  background: rgba(10,14,18,.18);
+}
+.slot .tag{
+  font-size: 11px;
+  letter-spacing: .12em;
+  color: rgba(232,238,252,.60);
+  border: 1px solid rgba(232,238,252,.14);
+  padding: 6px 8px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+.slot .name{ font-weight: 700; }
+.slot .sub{ color: rgba(232,238,252,.62); font-size: 12px; margin-top: 2px; }
+.slot.is-class .tag{ border-color: rgba(99,255,183,.30); color: rgba(99,255,183,.92); }
+.slot.is-free .tag{ border-color: rgba(139,225,255,.22); color: rgba(139,225,255,.92); }
+.slot.is-done{ opacity: .55; }
+
+.bullets{ margin: 10px 0 0; padding: 0 16px 16px; color: rgba(232,238,252,.68); font-size: 12px; }
+.bullets li{ margin: 6px 0; }
+
+.story{
+  font-size: 15px;
+  line-height: 1.6;
+  color: rgba(232,238,252,.90);
+}
+.actions{ display:flex; flex-wrap:wrap; gap: 10px; }
+.log{
+  padding: 12px 14px;
+  overflow:auto;
+  flex:1;
+}
+.log-item{
+  padding: 10px 0;
+  border-bottom: 1px dashed rgba(232,238,252,.10);
+  color: rgba(232,238,252,.80);
+  animation: rise .25s ease both;
+}
+.log-item .t{ color: rgba(232,238,252,.52); font-size: 11px; letter-spacing:.1em; margin-bottom: 4px; }
+.log-item .m{ font-size: 13px; line-height:1.5; }
+
+@keyframes rise{
+  from{ transform: translateY(6px); opacity:0; }
+  to{ transform: translateY(0); opacity:1; }
+}
+
+/* Modal */
+.modal-root{
+  position:fixed; inset:0;
+  display:grid;
+  place-items:center;
+  z-index: 50;
+}
+.modal-root[hidden]{ display:none !important; }
+.modal-backdrop{ position:absolute; inset:0; background: rgba(0,0,0,.65); }
+.modal{
+  position:relative;
+  width: min(720px, calc(100vw - 24px));
+  max-height: min(78vh, 720px);
+  overflow:hidden;
+  border-radius: 22px;
+  border: 1px solid rgba(232,238,252,.14);
+  background: rgba(8,10,14,.82);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 40px 110px rgba(0,0,0,.70);
+  display:flex;
+  flex-direction:column;
+}
+.modal-head{
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(232,238,252,.10);
+}
+.modal-title{ font-weight: 820; letter-spacing:.02em; }
+.modal-body{ padding: 14px; overflow:auto; color: rgba(232,238,252,.84); }
+.modal-actions{ padding: 12px 14px; display:flex; flex-wrap:wrap; gap: 10px; border-top: 1px solid rgba(232,238,252,.10); }
+
+/* Seat grid */
+.grid{
+  display:grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+}
+.cell{
+  border-radius: 14px;
+  border: 1px solid rgba(232,238,252,.12);
+  background: rgba(10,14,18,.28);
+  padding: 10px 8px;
+  min-height: 52px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+  cursor:pointer;
+  transition: transform .14s ease, border-color .14s ease, background .14s ease;
+  user-select:none;
+}
+.cell:hover{ transform: translateY(-1px); border-color: rgba(139,225,255,.35); }
+.cell.is-hidden{ opacity:.22; cursor:not-allowed; }
+.cell.is-revealed{ opacity:1; }
+.cell .v{ font-size: 13px; font-weight: 760; font-variant-numeric: tabular-nums; }
+.cell .l{ font-size: 11px; color: rgba(232,238,252,.62); margin-top: 2px; }
+.cell.is-perfume{ border-color: rgba(99,255,183,.35); }
+
+/* End */
+.end-shell, .ach-shell{
+  position:relative;
+  min-height: 100svh;
+  padding: clamp(18px, 4vw, 64px);
+  display:grid;
+  place-items:center;
+}
+.end-card{
+  width:min(760px, 100%);
+  border-radius: 28px;
+  border: 1px solid rgba(232,238,252,.14);
+  background: rgba(8,10,14,.62);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 40px 120px rgba(0,0,0,.70);
+  padding: 22px 22px 18px;
+}
+.end-kicker{ color: rgba(232,238,252,.62); letter-spacing:.22em; font-size: 12px; text-transform: uppercase; }
+.end-title{ margin: 8px 0 10px; font-size: 34px; letter-spacing:.01em; }
+.end-desc{ margin: 0 0 14px; color: rgba(232,238,252,.80); line-height: 1.65; }
+.end-stats{ display:flex; flex-wrap:wrap; gap: 10px; margin: 10px 0 16px; }
+.end-row{ display:flex; flex-wrap:wrap; gap: 10px; }
+
+/* Achievements */
+.ach-shell{ place-items:stretch; }
+.ach-header{
+  position:relative;
+  display:flex; justify-content:space-between; align-items:flex-end;
+  gap: 18px;
+  padding: 18px 0 14px;
+}
+.ach-kicker{ color: rgba(232,238,252,.62); letter-spacing:.22em; font-size: 12px; text-transform: uppercase; }
+.ach-title{ margin: 8px 0 8px; font-size: 32px; }
+.ach-sub{ margin: 0; color: rgba(232,238,252,.74); }
+.ach-grid{
+  display:grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.ach-item{
+  border-radius: 20px;
+  border: 1px solid rgba(232,238,252,.12);
+  background: rgba(8,10,14,.50);
+  backdrop-filter: blur(14px);
+  padding: 14px 14px 12px;
+  overflow:hidden;
+}
+.ach-item.locked{ opacity: .68; }
+.ach-item .top{ display:flex; justify-content:space-between; gap: 10px; align-items:flex-start; }
+.ach-item .name{ font-weight: 820; }
+.ach-item .stars{ color: rgba(255,211,107,.92); letter-spacing:.1em; }
+.ach-item .desc{ margin-top: 8px; color: rgba(232,238,252,.78); line-height:1.55; font-size: 13px; }
+.ach-item .hintline{ margin-top: 8px; color: rgba(232,238,252,.55); font-size: 12px; }
+.ach-footer{ padding: 14px 0 0; color: rgba(232,238,252,.60); }
+
+/* Toast */
+.toast{
+  position:fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  background: rgba(8,10,14,.76);
+  border: 1px solid rgba(232,238,252,.12);
+  border-radius: 14px;
+  padding: 10px 12px;
+  box-shadow: 0 28px 70px rgba(0,0,0,.55);
+  backdrop-filter: blur(12px);
+  max-width: min(680px, calc(100vw - 24px));
+  color: rgba(232,238,252,.88);
+  animation: pop .22s ease both;
+  z-index: 55;
+}
+.toast[hidden]{ display:none !important; }
+@keyframes pop{ from{ transform: translateX(-50%) translateY(8px); opacity:0; } to{ transform: translateX(-50%) translateY(0); opacity:1; } }
+
+@media (max-width: 980px){
+  body{ overflow:auto; }
+  .main{ grid-template-columns: 1fr; height:auto; }
+  .panel{ min-height: 240px; }
+  .title-header{ grid-template-columns: 1fr; padding-top: 64px; }
+  .title-actions{ justify-self:start; }
+  .ach-grid{ grid-template-columns: 1fr; }
+}
+    </style>
+  </head>
+  <body>
+    <div id="app" class="app" data-screen="title">
+      <!-- Title -->
+      <section id="screen-title" class="screen screen-title" aria-label="标题界面">
+        <div class="bg bg-title" aria-hidden="true"></div>
+        <header class="title-header">
+          <div class="brand">
+            <div class="brand-mark" aria-hidden="true"></div>
+            <div class="brand-text">
+              <div class="brand-kicker">校园异味生存录</div>
+              <h1 class="brand-title">异闻录</h1>
+              <p class="brand-sub">两条路线 · 两套数值 · 多结局成就</p>
+            </div>
+          </div>
+          <div class="title-actions">
+            <button class="btn btn-primary" id="btnStartMode1">开始：闻风丧胆</button>
+            <button class="btn btn-ghost" id="btnStartMode2">开始：风行天下</button>
+            <div class="title-row">
+              <button class="btn btn-quiet" id="btnOpenAchievements">成就墙</button>
+              <button class="btn btn-quiet" id="btnResetAll">清空存档</button>
+              <button class="btn btn-quiet" id="btnGoLauncher">模式选择</button>
+            </div>
+          </div>
+        </header>
+
+        <footer class="title-footer">
+          <div class="hint">
+            提示：本文件为<strong>单文件版</strong>，直接把 <code>single.html</code> 发给别人并双击打开即可玩。
+          </div>
+        </footer>
+      </section>
+
+      <!-- Game -->
+      <section id="screen-game" class="screen screen-game" aria-label="游戏界面">
+        <div class="bg bg-game" aria-hidden="true"></div>
+        <div class="game-shell">
+          <header class="hud">
+            <div class="hud-left">
+              <button class="btn btn-quiet" id="btnBackToTitle">返回</button>
+              <div class="pill" id="pillMode">模式</div>
+              <div class="pill" id="pillDay">第1天</div>
+              <div class="pill pill-muted" id="pillPhase">清晨</div>
+            </div>
+            <div class="hud-right">
+              <div class="stat" title="生活费">
+                <span class="stat-k">R</span>
+                <span class="stat-v" id="statMoney">200</span>
+              </div>
+              <div class="stat" id="statSanWrap" title="SAN值（0以下失败）">
+                <span class="stat-k">SAN</span>
+                <span class="stat-v" id="statSan">100</span>
+              </div>
+              <div class="stat" title="影响力 / 臭值">
+                <span class="stat-k">影响</span>
+                <span class="stat-v" id="statInfluence">0</span>
+              </div>
+              <div class="stat stat-wide" id="statPeopleWrap" title="影响人数（仅风行天下）" hidden>
+                <span class="stat-k">人数</span>
+                <span class="stat-v" id="statPeople">0</span>
+              </div>
+              <button class="btn btn-ghost" id="btnInventory">道具</button>
+            </div>
+          </header>
+
+          <main class="main">
+            <section class="panel panel-left">
+              <div class="panel-title">今日课表</div>
+              <div id="schedule" class="schedule"></div>
+              <div class="panel-divider"></div>
+              <div class="panel-title">限制提示</div>
+              <ul class="bullets" id="rulesHint"></ul>
+            </section>
+
+            <section class="panel panel-center" aria-live="polite">
+              <div class="panel-title" id="centerTitle">事件</div>
+              <div class="panel-body">
+                <div class="story" id="storyText">——</div>
+                <div class="actions" id="actionButtons"></div>
+              </div>
+            </section>
+
+            <section class="panel panel-right">
+              <div class="panel-title">日志</div>
+              <div class="log" id="log"></div>
+            </section>
+          </main>
+        </div>
+      </section>
+
+      <!-- End -->
+      <section id="screen-end" class="screen screen-end" aria-label="结算界面">
+        <div class="bg bg-game" aria-hidden="true"></div>
+        <div class="end-shell">
+          <div class="end-card">
+            <div class="end-kicker">结算</div>
+            <h2 class="end-title" id="endTitle">——</h2>
+            <p class="end-desc" id="endDesc">——</p>
+            <div class="end-stats" id="endStats"></div>
+            <div class="end-row">
+              <button class="btn btn-primary" id="btnRestart">再来一局</button>
+              <button class="btn btn-ghost" id="btnEndToTitle">回到标题</button>
+              <button class="btn btn-quiet" id="btnEndAchievements">查看成就</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Achievements -->
+      <section id="screen-achievements" class="screen screen-achievements" aria-label="成就墙">
+        <div class="bg bg-title" aria-hidden="true"></div>
+        <div class="ach-shell">
+          <header class="ach-header">
+            <div>
+              <div class="ach-kicker">成就墙</div>
+              <h2 class="ach-title">异闻录 · 记录薄</h2>
+              <p class="ach-sub" id="achSummary">——</p>
+            </div>
+            <div class="ach-actions">
+              <button class="btn btn-primary" id="btnAchBack">返回</button>
+            </div>
+          </header>
+          <div class="ach-grid" id="achGrid"></div>
+          <footer class="ach-footer">
+            <div class="hint">未达成成就仅显示轻度提示；更多结局与成就可通过不同选择触发。</div>
+          </footer>
+        </div>
+      </section>
+
+      <!-- Modal -->
+      <div id="modalRoot" class="modal-root" hidden>
+        <div class="modal-backdrop" data-close="1"></div>
+        <div class="modal" role="dialog" aria-modal="true" aria-label="对话框">
+          <div class="modal-head">
+            <div class="modal-title" id="modalTitle">——</div>
+            <button class="icon-btn" id="modalClose" aria-label="关闭">✕</button>
+          </div>
+          <div class="modal-body" id="modalBody"></div>
+          <div class="modal-actions" id="modalActions"></div>
+        </div>
+      </div>
+
+      <!-- Toast -->
+      <div id="toast" class="toast" hidden></div>
+    </div>
+
+    <script>
+/* === 内嵌脚本：game.js === */
+/* 异闻录 · Web Demo
+ * 说明：纯前端单文件逻辑，支持两种模式、基础UI、事件、成就、结算。
+ */
+
+(() => {
+  /** @type {const} */
+  const COURSE_POOL = ["线性代数", "高等数学", "近现代史纲要", "英语"];
+
+  const MODES = {
+    m1: { id: "m1", name: "闻风丧胆", days: 5 },
+    m2: { id: "m2", name: "风行天下", days: 3 },
+  };
+
+  const STORAGE_KEY = "ywl_demo_save_v1";
+
+  /** -----------------------------
+   * 工具
+   * ----------------------------- */
+  const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+  const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+  const chance = (p) => Math.random() < p;
+  const nowTag = () => new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+  const stars = (n) => "⭐".repeat(n);
+  const fmtPct = (n) => `${Math.round(n)}%`;
+
+  /** -----------------------------
+   * DOM
+   * ----------------------------- */
+  const $ = (q) => document.querySelector(q);
+  const app = $("#app");
+
+  const btnStartMode1 = $("#btnStartMode1");
+  const btnStartMode2 = $("#btnStartMode2");
+  const btnOpenAchievements = $("#btnOpenAchievements");
+  const btnResetAll = $("#btnResetAll");
+  const btnGoLauncher = $("#btnGoLauncher");
+
+  const btnBackToTitle = $("#btnBackToTitle");
+  const btnInventory = $("#btnInventory");
+  const scheduleEl = $("#schedule");
+  const rulesHintEl = $("#rulesHint");
+  const centerTitleEl = $("#centerTitle");
+  const storyTextEl = $("#storyText");
+  const actionButtonsEl = $("#actionButtons");
+  const logEl = $("#log");
+
+  const pillMode = $("#pillMode");
+  const pillDay = $("#pillDay");
+  const pillPhase = $("#pillPhase");
+
+  const statMoney = $("#statMoney");
+  const statSanWrap = $("#statSanWrap");
+  const statSan = $("#statSan");
+  const statInfluence = $("#statInfluence");
+  const statPeopleWrap = $("#statPeopleWrap");
+  const statPeople = $("#statPeople");
+
+  const screenEndTitle = $("#endTitle");
+  const screenEndDesc = $("#endDesc");
+  const endStats = $("#endStats");
+  const btnRestart = $("#btnRestart");
+  const btnEndToTitle = $("#btnEndToTitle");
+  const btnEndAchievements = $("#btnEndAchievements");
+
+  const btnAchBack = $("#btnAchBack");
+  const achSummary = $("#achSummary");
+  const achGrid = $("#achGrid");
+
+  const modalRoot = $("#modalRoot");
+  const modalTitle = $("#modalTitle");
+  const modalBody = $("#modalBody");
+  const modalActions = $("#modalActions");
+  const modalClose = $("#modalClose");
+
+  const toastEl = $("#toast");
+
+  /** -----------------------------
+   * 存档（仅成就墙 + 统计）
+   * ----------------------------- */
+  const save = loadSave();
+  function loadSave() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return { unlocked: {}, meta: { plays: 0 } };
+      const parsed = JSON.parse(raw);
+      return {
+        unlocked: parsed.unlocked || {},
+        meta: parsed.meta || { plays: 0 },
+      };
+    } catch {
+      return { unlocked: {}, meta: { plays: 0 } };
+    }
+  }
+  function persistSave() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(save));
+  }
+
+  /** -----------------------------
+   * 成就定义
+   * ----------------------------- */
+  const ACH = [
+    // Mode 1
+    {
+      id: "m1_run2_in2days",
+      mode: "m1",
+      name: "生命在于运动",
+      stars: 3,
+      desc: "只活了两天但跑了两次乐跑",
+      hint: "短命也要跑够。",
+      checkEnd: (s) => !!s.dead && s.day <= 2 && s.runsTotal >= 2,
+    },
+    {
+      id: "m1_counsel3",
+      mode: "m1",
+      name: "不知悔改",
+      stars: 3,
+      desc: "被导员约谈次数 ≥ 3",
+      hint: "多翘课多约谈。",
+      check: (s) => s.counselorCount >= 3,
+    },
+    {
+      id: "m1_shower5",
+      mode: "m1",
+      name: "澡堂钉子户",
+      stars: 2,
+      desc: "单局洗澡次数 = 5",
+      hint: "勤洗澡。",
+      check: (s) => s.showerCount >= 5,
+    },
+    {
+      id: "m1_transfer5",
+      mode: "m1",
+      name: "转移大师",
+      stars: 3,
+      desc: "累计将SAN扣除转移为影响力增加 ≥ 5次",
+      hint: "多触发SAN扣除。",
+      check: (s) => s.transferCount >= 5,
+    },
+    {
+      id: "m1_counsel_after_reset",
+      mode: "m1",
+      name: "导员挚友",
+      stars: 2,
+      desc: "被约谈后风险重置回50%的当回合，再次触发约谈",
+      hint: "约谈后继续翘课。",
+      check: (s) => s.counselorFriend,
+    },
+    {
+      id: "m1_library_bad3",
+      mode: "m1",
+      name: "掷骰子之王",
+      stars: 2,
+      desc: "图书馆连续三次随机分配且都触发极臭",
+      hint: "多去图书馆随机。",
+      check: (s) => s.libraryBadStreak >= 3,
+    },
+    {
+      id: "m1_smoke6",
+      mode: "m1",
+      name: "烟人吸引体质",
+      stars: 2,
+      desc: "单局遭遇烟人 ≥ 6次",
+      hint: "放风/寝室常见。",
+      check: (s) => s.smokeCount >= 6,
+    },
+    {
+      id: "m1_water2",
+      mode: "m1",
+      name: "小卖部VIP",
+      stars: 3,
+      desc: "单局购买快乐水 = 2瓶",
+      hint: "晚上去小卖部。",
+      check: (s) => s.boughtWaterCount >= 2,
+    },
+    {
+      id: "m1_big_transfer",
+      mode: "m1",
+      name: "极限转移",
+      stars: 3,
+      desc: "单次将 ≥25点SAN扣除转移为影响力",
+      hint: "把大额扣SAN转移出去。",
+      check: (s) => s.maxSingleTransfer >= 25,
+    },
+    {
+      id: "m1_bankrupt",
+      mode: "m1",
+      name: "破产姐妹（兄弟）",
+      stars: 2,
+      desc: "金钱首次被扣至0",
+      hint: "多消费。",
+      check: (s) => s.bankruptOnce,
+    },
+    {
+      id: "m1_leave_after_smoke",
+      mode: "m1",
+      name: "时间管理大师",
+      stars: 2,
+      desc: "放风前半段遇烟人后选择立刻离开",
+      hint: "放风别犹豫。",
+      check: (s) => s.leftAfterSmokeOnce,
+    },
+    {
+      id: "m1_no_shower_3turns",
+      mode: "m1",
+      name: "澡堂守财奴",
+      stars: 2,
+      desc: "影响力≥40时不洗澡，硬抗三回合",
+      hint: "高影响力也别洗。",
+      check: (s) => s.noShowerStreakMax >= 3,
+    },
+    {
+      id: "m1_forced_seat3",
+      mode: "m1",
+      name: "嗅觉PTSD",
+      stars: 3,
+      desc: "教室选座三次用完步数后被强制落座",
+      hint: "别选座…或故意耗尽步数。",
+      check: (s) => s.forcedSeatCount >= 3,
+    },
+    {
+      id: "m1_five_poison",
+      mode: "m1",
+      name: "五毒俱全",
+      stars: 5,
+      desc: "同局：被约谈过、被强制落座过、没洗过澡、没跑够两次乐跑、吃过蚕豆",
+      hint: "把坏事都做一遍。",
+      checkEnd: (s) =>
+        (s.counselorCount > 0) &&
+        (s.forcedSeatCount > 0) &&
+        (s.showerCount === 0) &&
+        (s.runsTotal < 2) &&
+        (s.ateBroadBeans === true),
+    },
+
+    // Mode 2
+    {
+      id: "m2_fart3",
+      mode: "m2",
+      name: "奶龙音响师",
+      stars: 3,
+      desc: "单局释放臭屁技能 ≥ 3次",
+      hint: "多买蚕豆多放。",
+      check: (s) => s.fartUsed >= 3,
+    },
+    {
+      id: "m2_people200",
+      mode: "m2",
+      name: "人群收割机",
+      stars: 3,
+      desc: "累计影响人数 ≥ 200",
+      hint: "选高密度座位。",
+      check: (s) => s.people >= 200,
+    },
+    {
+      id: "m2_beans4",
+      mode: "m2",
+      name: "臭名投资人",
+      stars: 3,
+      desc: "单局购买蚕豆零食 ≥ 4次",
+      hint: "继续‘理味’。",
+      check: (s) => s.buyBeans >= 4,
+    },
+    {
+      id: "m2_extreme_control",
+      mode: "m2",
+      name: "极限控味",
+      stars: 3,
+      desc: "通关时影响力≤20 且累计影响人数≥50",
+      hint: "又传播又干净。",
+      checkEnd: (s) => !s.dead && s.influence <= 20 && s.people >= 50,
+    },
+    {
+      id: "m2_work2_180_199",
+      mode: "m2",
+      name: "劳模但不许靠近",
+      stars: 3,
+      desc: "影响力在180~199之间完成打工 ≥ 2次",
+      hint: "在封杀边缘打工。",
+      check: (s) => s.workNearBan >= 2,
+    },
+    {
+      id: "m2_jet",
+      mode: "m2",
+      name: "喷射战士",
+      stars: 2,
+      desc: "影响力≥150时在寝室触发‘喷射战士’≥1次",
+      hint: "影响力拉高再回寝。",
+      check: (s) => s.jetTriggered >= 1,
+    },
+    {
+      id: "m2_forced2",
+      mode: "m2",
+      name: "座位猎手",
+      stars: 2,
+      desc: "教室选座中至少2次用完步数被强制落座",
+      hint: "多耗尽步数。",
+      check: (s) => s.forcedSeatCount >= 2,
+    },
+    {
+      id: "m2_bath_econ",
+      mode: "m2",
+      name: "澡堂经济学",
+      stars: 2,
+      desc: "生活费首次归零发生在购买搓澡巾或洗澡之后",
+      hint: "把钱花在刀刃上。",
+      check: (s) => s.bankruptByBathItem,
+    },
+    {
+      id: "m2_social_avoid2",
+      mode: "m2",
+      name: "社交闪避大师",
+      stars: 2,
+      desc: "放风触发‘碰到同学’后立刻离开 ≥ 2次",
+      hint: "碰到同学就走。",
+      check: (s) => s.socialAvoid >= 2,
+    },
+    {
+      id: "m2_clean3",
+      mode: "m2",
+      name: "打扫即正义",
+      stars: 2,
+      desc: "宿舍大扫除 ≥ 3次",
+      hint: "寝室多选大扫除。",
+      check: (s) => s.cleanCount >= 3,
+    },
+    {
+      id: "m2_first_100",
+      mode: "m2",
+      name: "第一次发酵",
+      stars: 1,
+      desc: "影响力首次达到100",
+      hint: "影响力涨起来。",
+      check: (s) => s.hit100,
+    },
+    {
+      id: "m2_first_beans",
+      mode: "m2",
+      name: "第一口蚕豆",
+      stars: 1,
+      desc: "首次购买并使用蚕豆零食",
+      hint: "去小卖部。",
+      check: (s) => s.firstBeans,
+    },
+    {
+      id: "m2_first_shower",
+      mode: "m2",
+      name: "洗澡新手",
+      stars: 1,
+      desc: "首次选择洗澡",
+      hint: "晚上去洗澡。",
+      check: (s) => s.firstShower,
+    },
+  ];
+
+  /** -----------------------------
+   * 游戏状态
+   * ----------------------------- */
+  /** @type {ReturnType<typeof newRunState>} */
+  let S = null;
+
+  function newRunState(modeId) {
+    if (modeId === "m1") {
+      return {
+        mode: "m1",
+        day: 1,
+        maxDay: MODES.m1.days,
+        step: 0,
+        money: 200,
+        san: 100,
+        influence: 0,
+        people: 0, // unused in m1
+        schedule: [],
+        doneSlots: 0,
+        inventory: { water: 0, perfume: 0, leek: 0, broadBeans: 0 },
+        buffs: { perfumeSeat: 0 },
+        nextDayInfluenceBonus: 0,
+        skippedBreakfast: false,
+        runsTotal: 0,
+        ranToday: false,
+        counselorRisk: 0,
+        counselorCount: 0,
+        counselorFriend: false,
+        smokeCount: 0,
+        forcedSeatCount: 0,
+        transferCount: 0,
+        maxSingleTransfer: 0,
+        boughtWaterCount: 0,
+        showerCount: 0,
+        noShowerStreak: 0,
+        noShowerStreakMax: 0,
+        leftAfterSmokeOnce: false,
+        libraryBadStreak: 0,
+        ateBroadBeans: false,
+        bankruptOnce: false,
+        dead: false,
+        deathMeta: { reason: "肺部感染", desc: "普通死亡", raw: "" },
+        endMeta: null,
+      };
+    }
+    return {
+      mode: "m2",
+      day: 1,
+      maxDay: MODES.m2.days,
+      step: 0,
+      money: 200,
+      san: 0,
+      influence: 40,
+      people: 0,
+      schedule: [],
+      doneSlots: 0,
+      inventory: { beans: 0, towel: 0 },
+      fartCharges: 0,
+      fartUsed: 0,
+      buyBeans: 0,
+      workCount: 0,
+      workedToday: false,
+      workNearBan: 0,
+      forcedSeatCount: 0,
+      socialAvoid: 0,
+      cleanCount: 0,
+      jetTriggered: 0,
+      hit100: false,
+      firstBeans: false,
+      firstShower: false,
+      bankruptByBathItem: false,
+      bankruptOnce: false,
+      dead: false,
+      deathMeta: null,
+      endMeta: null,
+    };
+  }
+
+  /** -----------------------------
+   * UI helpers
+   * ----------------------------- */
+  function setScreen(name) {
+    app.dataset.screen = name;
+  }
+  function clearActions() {
+    actionButtonsEl.innerHTML = "";
+  }
+  function setActions(actions) {
+    clearActions();
+    actions.forEach((a) => {
+      const btn = document.createElement("button");
+      btn.className = `btn ${a.variant || ""}`.trim();
+      btn.textContent = a.label;
+      btn.disabled = !!a.disabled;
+      btn.addEventListener("click", () => a.onClick?.());
+      actionButtonsEl.appendChild(btn);
+    });
+  }
+  function setStory(title, text) {
+    if (title) centerTitleEl.textContent = title;
+    storyTextEl.textContent = text;
+  }
+  function pushLog(message) {
+    const item = document.createElement("div");
+    item.className = "log-item";
+    item.innerHTML = `<div class="t">${nowTag()}</div><div class="m">${escapeHtml(message)}</div>`;
+    logEl.prepend(item);
+  }
+  function toast(message, ms = 1800) {
+    toastEl.textContent = message;
+    toastEl.hidden = false;
+    clearTimeout(toastEl._t);
+    toastEl._t = setTimeout(() => (toastEl.hidden = true), ms);
+  }
+  function escapeHtml(s) {
+    return String(s)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  /** -----------------------------
+   * Modal system (Promise-based)
+   * ----------------------------- */
+  let modalResolver = null;
+  function closeModal() {
+    modalRoot.hidden = true;
+    modalTitle.textContent = "——";
+    modalBody.innerHTML = "";
+    modalActions.innerHTML = "";
+    const r = modalResolver;
+    modalResolver = null;
+    if (r) r(null);
+  }
+  modalClose.addEventListener("click", closeModal);
+  modalRoot.addEventListener("click", (e) => {
+    const t = /** @type {HTMLElement} */ (e.target);
+    if (t?.dataset?.close === "1") closeModal();
+  });
+
+  function showModal({ title, body, actions, lockClose = false }) {
+    modalRoot.hidden = false;
+    modalTitle.textContent = title || "提示";
+    modalBody.innerHTML = body || "";
+    modalActions.innerHTML = "";
+    modalClose.style.visibility = lockClose ? "hidden" : "visible";
+    modalRoot.querySelector(".modal-backdrop").dataset.close = lockClose ? "0" : "1";
+
+    return new Promise((resolve) => {
+      modalResolver = resolve;
+      (actions || []).forEach((a) => {
+        const btn = document.createElement("button");
+        btn.className = `btn ${a.variant || ""}`.trim();
+        btn.textContent = a.label;
+        btn.disabled = !!a.disabled;
+        btn.addEventListener("click", () => {
+          if (a.keepOpen) resolve(a.value);
+          else {
+            modalRoot.hidden = true;
+            resolve(a.value);
+          }
+          modalResolver = null;
+        });
+        modalActions.appendChild(btn);
+      });
+    });
+  }
+
+  // 用于“2秒大字提示”这类短暂、不可交互的提示
+  function showSplash({ title, html, ms = 2000 }) {
+    // 清理潜在 resolver
+    modalResolver = null;
+    modalRoot.hidden = false;
+    modalTitle.textContent = title || "提示";
+    modalBody.innerHTML = html || "";
+    modalActions.innerHTML = "";
+    modalClose.style.visibility = "hidden";
+    modalRoot.querySelector(".modal-backdrop").dataset.close = "0";
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        modalRoot.hidden = true;
+        resolve(true);
+      }, ms);
+    });
+  }
+
+  /** -----------------------------
+   * 通用数值变更
+   * ----------------------------- */
+  function applyMoney(delta, reason = "") {
+    if (!delta) return;
+    S.money = Math.max(0, S.money + delta);
+    if (S.money === 0 && !S.bankruptOnce) {
+      S.bankruptOnce = true;
+      if (S.mode === "m1") unlockAchievement("m1_bankrupt");
+      if (S.mode === "m2") {
+        // 是否为澡堂经济学
+        if (S._lastSpendType === "bath") {
+          S.bankruptByBathItem = true;
+          unlockAchievement("m2_bath_econ");
+        }
+      }
+    }
+    if (reason) pushLog(`${reason}（R ${delta > 0 ? "+" : ""}${delta}）`);
+  }
+
+  async function applySan(delta, reason = "") {
+    if (S.mode !== "m1") return;
+    if (!delta) return;
+    if (delta > 0) {
+      const before = S.san;
+      S.san = clamp(S.san + delta, 0, 100);
+      if (reason) pushLog(`${reason}（SAN +${S.san - before}）`);
+      return;
+    }
+
+    const loss = Math.abs(delta);
+    // 记录“死亡归因”线索（粗粒度）
+    S._lastSanLossTag = /不吃|午饭前精神崩坏|饥饿/.test(reason) ? "meal" : "other";
+    const canTransfer = S.influence < 200;
+    const title = "SAN受损";
+    const body = `
+      <div style="line-height:1.65">
+        <div style="color:rgba(232,238,252,.88)">${escapeHtml(reason || "发生扣除")}</div>
+        <div style="margin-top:10px">本次扣除：<b style="color:var(--danger)">-${loss}</b></div>
+        <div style="margin-top:8px;color:rgba(232,238,252,.62)">可选择扣在SAN上，或转移为影响力增加。</div>
+      </div>
+    `;
+    const pick = await showModal({
+      title,
+      body,
+      actions: [
+        { label: "扣在SAN", value: "san", variant: "btn-primary" },
+        { label: canTransfer ? `转移为影响力 +${loss}` : "影响力已满(200)", value: "inf", variant: "btn-ghost", disabled: !canTransfer },
+      ],
+      lockClose: true,
+    });
+
+    if (pick === "inf" && canTransfer) {
+      const add = Math.min(loss, 200 - S.influence);
+      S.influence += add;
+      S.transferCount += 1;
+      S.maxSingleTransfer = Math.max(S.maxSingleTransfer, loss);
+      pushLog(`${reason}（转移：影响力 +${add}）`);
+      unlockAchievement("m1_transfer5");
+      unlockAchievement("m1_big_transfer");
+      return;
+    }
+
+    S.san -= loss;
+    pushLog(`${reason}（SAN -${loss}）`);
+    if (S.san <= 0) {
+      if (S._lastSanLossTag === "meal") S._deathByMealSkip = true;
+      await endRun(false, buildDeathMeta());
+    }
+  }
+
+  function applyInfluence(delta, reason = "") {
+    if (!delta) return;
+    const before = S.influence;
+    if (S.mode === "m1") {
+      S.influence = clamp(S.influence + delta, 0, 200);
+    } else {
+      S.influence = Math.max(0, S.influence + delta);
+      if (!S.hit100 && S.influence >= 100) {
+        S.hit100 = true;
+        unlockAchievement("m2_first_100");
+      }
+    }
+    const real = S.influence - before;
+    if (reason && real !== 0) pushLog(`${reason}（影响 ${real > 0 ? "+" : ""}${real}）`);
+  }
+
+  function applyPeople(delta, reason = "") {
+    if (S.mode !== "m2") return;
+    if (!delta) return;
+    const before = S.people;
+    S.people = Math.max(0, Math.round(S.people + delta));
+    if (reason) pushLog(`${reason}（人数 ${S.people - before >= 0 ? "+" : ""}${S.people - before}）`);
+  }
+
+  function afterEachAction() {
+    // 通用成就刷新
+    ACH.forEach((a) => {
+      if (a.check && a.mode === S.mode && !save.unlocked[a.id]) {
+        if (a.check(S)) unlockAchievement(a.id);
+      }
+    });
+  }
+
+  function unlockAchievement(id) {
+    if (!id) return;
+    if (save.unlocked[id]) return;
+    const def = ACH.find((x) => x.id === id);
+    if (!def) return;
+    if (def.mode && def.mode !== S.mode) {
+      // 允许跨模式在结算时解锁的情况：这里不阻止，但一般不会
+    }
+    save.unlocked[id] = { at: Date.now() };
+    persistSave();
+    toast(`成就达成：${def.name} ${stars(def.stars)}`, 2200);
+    pushLog(`【成就】${def.name} ${stars(def.stars)}`);
+  }
+
+  /** -----------------------------
+   * 课表生成
+   * ----------------------------- */
+  function genSchedule() {
+    const slots = ["一节", "二节", "三节", "四节"];
+    // 随机 2~3 节有课
+    const classCount = randInt(2, 3);
+    const idx = shuffle([0, 1, 2, 3]).slice(0, classCount);
+    const isClass = new Set(idx);
+    const schedule = slots.map((label, i) => {
+      const it = { label, kind: isClass.has(i) ? "class" : "free", course: null };
+      if (it.kind === "class") it.course = COURSE_POOL[randInt(0, COURSE_POOL.length - 1)];
+      return it;
+    });
+    return schedule;
+  }
+
+  function shuffle(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  /** -----------------------------
+   * 渲染 HUD / 课表
+   * ----------------------------- */
+  function renderHud(phaseText) {
+    pillMode.textContent = `模式：${MODES[S.mode].name}`;
+    pillDay.textContent = `第${S.day}天 / ${S.maxDay}天`;
+    pillPhase.textContent = phaseText || "—";
+
+    statMoney.textContent = String(S.money);
+    statInfluence.textContent = String(S.influence);
+
+    if (S.mode === "m1") {
+      statSanWrap.hidden = false;
+      statSan.textContent = String(S.san);
+      statPeopleWrap.hidden = true;
+    } else {
+      statSanWrap.hidden = true;
+      statPeopleWrap.hidden = false;
+      statPeople.textContent = String(S.people);
+    }
+  }
+
+  function renderSchedule() {
+    scheduleEl.innerHTML = "";
+    S.schedule.forEach((slt, i) => {
+      const div = document.createElement("div");
+      div.className = `slot ${slt.kind === "class" ? "is-class" : "is-free"} ${i < S.doneSlots ? "is-done" : ""}`.trim();
+      div.innerHTML = `
+        <div class="tag">${slt.kind === "class" ? "上课" : "空课"}</div>
+        <div>
+          <div class="name">${escapeHtml(slt.label)} ${slt.course ? `· ${escapeHtml(slt.course)}` : ""}</div>
+          <div class="sub">${escapeHtml(slt.kind === "class" ? "必触发：教室选座 + 课间放风" : "选择去处（不可跳）")}</div>
+        </div>
+      `;
+      scheduleEl.appendChild(div);
+    });
+  }
+
+  function renderRulesHint() {
+    rulesHintEl.innerHTML = "";
+    const items = [];
+    if (S.mode === "m1") {
+      items.push(`SAN低于0即失败（当前 ${S.san}）`);
+      items.push(`影响力≥40：每节课后额外SAN -15`);
+      items.push(`五天内至少跑两次（当前 ${S.runsTotal} / 2）`);
+      items.push(`每天最多跑一次（今日${S.ranToday ? "已跑" : "未跑"}）`);
+      items.push(`约谈风险：${fmtPct(S.counselorRisk)}（翘课+20%叠加）`);
+    } else {
+      items.push(`三天内至少跑一次（当前 ${S.runsTotal} / 1）`);
+      items.push(`影响力≥200无法打工`);
+      items.push(`打工限制：一天只能一次（今日${S.workedToday ? "已打工" : "未打工"}）`);
+      items.push(`臭屁技能：剩余 ${S.fartCharges} 次`);
+    }
+    items.forEach((t) => {
+      const li = document.createElement("li");
+      li.textContent = t;
+      rulesHintEl.appendChild(li);
+    });
+  }
+
+  /** -----------------------------
+   * 游戏主流程
+   * ----------------------------- */
+  async function startRun(modeId) {
+    S = newRunState(modeId);
+    save.meta.plays = (save.meta.plays || 0) + 1;
+    persistSave();
+
+    logEl.innerHTML = "";
+    pushLog(`开局：${MODES[modeId].name}`);
+
+    setScreen("game");
+
+    if (modeId === "m2") {
+      const pick = await showModal({
+        title: "前情提要",
+        body: `
+          <div style="line-height:1.7">
+            <div style="margin-bottom:8px">同学，这种行为是不道德的，作为新时代的青年，你真的要这么做吗？</div>
+            <div style="color:rgba(232,238,252,.62)">（选择A会返回标题，选择B进入流程）</div>
+          </div>
+        `,
+        actions: [
+          { label: "不了不了", value: "a", variant: "btn-primary" },
+          { label: "依旧坚持", value: "b", variant: "btn-ghost" },
+        ],
+        lockClose: true,
+      });
+      if (pick === "a") {
+        await showSplash({
+          title: "",
+          html: `<div style="font-size:38px;font-weight:950;letter-spacing:.08em;padding:22px 0;text-align:center">这才是栋梁</div>`,
+          ms: 3000,
+        });
+        setScreen("title");
+        return;
+      }
+      await showSplash({
+        title: "",
+        html: `<div style="font-size:38px;font-weight:950;letter-spacing:.08em;padding:22px 0;text-align:center">你纯魔丸来的</div>`,
+        ms: 3000,
+      });
+    }
+
+    await newDay();
+  }
+
+  async function newDay() {
+    S.step = 0;
+    S.doneSlots = 0;
+    S.ranToday = false;
+    if (S.mode === "m2") S.workedToday = false;
+    S.schedule = genSchedule();
+
+    // 次日影响力加成（韭菜盒子）
+    if (S.mode === "m1" && S.nextDayInfluenceBonus) {
+      applyInfluence(S.nextDayInfluenceBonus, "韭菜盒子余韵");
+      S.nextDayInfluenceBonus = 0;
+    }
+    renderSchedule();
+    renderRulesHint();
+    await runTimeline();
+  }
+
+  function timelineSteps() {
+    return [
+      { key: "dawn", label: "清晨" },
+      { key: "breakfast", label: "早饭" },
+      { key: "slot0", label: "上午·一节" },
+      { key: "slot1", label: "上午·二节" },
+      { key: "lunch", label: "午饭" },
+      { key: "slot2", label: "下午·三节" },
+      { key: "slot3", label: "下午·四节" },
+      { key: "dinner", label: "晚饭" },
+      { key: "nightShop", label: "晚上·小卖部" },
+      { key: "nightShower", label: "晚上·洗澡" },
+      { key: "sleep", label: "睡觉" },
+    ];
+  }
+
+  async function runTimeline() {
+    const steps = timelineSteps();
+    while (!S.dead && S.step < steps.length) {
+      const step = steps[S.step];
+      renderHud(step.label);
+      renderRulesHint();
+
+      if (step.key === "dawn") {
+        setStory("清晨", "刷新课表，确认今日初始值。");
+        setActions([{ label: "继续", variant: "btn-primary", onClick: async () => { S.step++; await runTimeline(); } }]);
+        return;
+      }
+
+      if (step.key === "breakfast") {
+        await stepBreakfast();
+        return;
+      }
+
+      if (step.key.startsWith("slot")) {
+        const slotIndex = Number(step.key.replace("slot", ""));
+        await stepSlot(slotIndex);
+        return;
+      }
+
+      if (step.key === "lunch") {
+        await stepMeal("午饭");
+        return;
+      }
+
+      if (step.key === "dinner") {
+        await stepMeal("晚饭");
+        return;
+      }
+
+      if (step.key === "nightShop") {
+        await stepNightShop();
+        return;
+      }
+
+      if (step.key === "nightShower") {
+        await stepShower();
+        return;
+      }
+
+      if (step.key === "sleep") {
+        await stepSleep();
+        return;
+      }
+    }
+  }
+
+  /** -----------------------------
+   * 具体步骤：早餐 / 空课 / 上课 / 饭 / 小卖部 / 洗澡 / 睡觉
+   * ----------------------------- */
+  async function stepBreakfast() {
+    if (S.mode === "m1") {
+      setStory("早饭", "只可选择吃 / 不吃。");
+      setActions([
+        {
+          label: "吃早饭（-5R）",
+          variant: "btn-primary",
+          disabled: S.money < 5,
+          onClick: async () => {
+            applyMoney(-5, "吃了早饭");
+            S.skippedBreakfast = false;
+            S.step++;
+            afterEachAction();
+            await runTimeline();
+          },
+        },
+        {
+          label: "不吃（午饭前SAN -40）",
+          variant: "btn-ghost",
+          onClick: async () => {
+            S.skippedBreakfast = true;
+            pushLog("你选择不吃早饭（午饭前将扣SAN）");
+            S.step++;
+            afterEachAction();
+            await runTimeline();
+          },
+        },
+      ]);
+      return;
+    }
+
+    setStory("早饭", "选择一种早餐（风行天下：影响力路线）。");
+    const opts = [
+      { label: "卷大葱（-30R，影响+20）", cost: 30, inf: 20 },
+      { label: "蒜香法棍（-15R，影响+10）", cost: 15, inf: 10 },
+      { label: "韭菜盒子（-20R，影响+15）", cost: 20, inf: 15 },
+      { label: "普通早饭（-10R）", cost: 10, inf: 0 },
+      { label: "不吃早饭", cost: 0, inf: 0 },
+    ];
+    setActions(
+      opts.map((o) => ({
+        label: o.label,
+        variant: o.cost ? "btn-primary" : "btn-ghost",
+        disabled: S.money < o.cost,
+        onClick: async () => {
+          if (o.cost) applyMoney(-o.cost, "吃了早饭");
+          if (o.inf) applyInfluence(o.inf, "早餐加成");
+          S.step++;
+          afterEachAction();
+          await runTimeline();
+        },
+      }))
+    );
+  }
+
+  async function stepSlot(slotIndex) {
+    const slt = S.schedule[slotIndex];
+    S.doneSlots = Math.max(S.doneSlots, slotIndex);
+    renderSchedule();
+
+    if (slt.kind === "class") {
+      await stepClass(slt, slotIndex);
+      return;
+    }
+    await stepFree(slt, slotIndex);
+  }
+
+  async function stepClass(slt, slotIndex) {
+    if (S.mode === "m1") {
+      setStory("上课", `本节：${slt.course}。你要去上课吗？`);
+      setActions([
+        {
+          label: "去上课",
+          variant: "btn-primary",
+          onClick: async () => {
+            pushLog(`上课：${slt.course}`);
+            await classroomSeat_m1();
+            if (S.dead) return;
+            await recess_m1();
+            if (S.dead) return;
+            // 影响力惩罚
+            if (S.influence >= 40) await applySan(-15, "影响力过高：课后精神被动消耗");
+            if (S.dead) return;
+            S.doneSlots = slotIndex + 1;
+            renderSchedule();
+            S.step++;
+            afterEachAction();
+            await runTimeline();
+          },
+        },
+        {
+          label: "翘课",
+          variant: "btn-ghost",
+          onClick: async () => {
+            pushLog(`翘课：${slt.course}`);
+            await skipClass_m1();
+            if (S.dead) return;
+            S.doneSlots = slotIndex + 1;
+            renderSchedule();
+            S.step++;
+            afterEachAction();
+            await runTimeline();
+          },
+        },
+      ]);
+      return;
+    }
+
+    // m2：不上课按钮禁用（按设定）
+    setStory("上课", `本节：${slt.course}。按键是黑色：不可以不上。`);
+    setActions([
+      {
+        label: "去上课",
+        variant: "btn-primary",
+        onClick: async () => {
+          pushLog(`上课：${slt.course}`);
+          await classroomSeat_m2();
+          await recess_m2();
+          S.doneSlots = slotIndex + 1;
+          renderSchedule();
+          S.step++;
+          afterEachAction();
+          await runTimeline();
+        },
+      },
+      { label: "不上（不可用）", variant: "btn-ghost", disabled: true, onClick: () => {} },
+    ]);
+  }
+
+  async function stepFree(_slt, slotIndex) {
+    // 空课给三个选择不可跳
+    if (S.mode === "m1") {
+      const pool = [
+        { id: "library", name: "图书馆" },
+        { id: "dorm", name: "寝室" },
+        { id: "track", name: "操场" },
+        { id: "store", name: "小卖部" },
+      ];
+      const choices = shuffle(pool).slice(0, 3);
+      setStory("空课", "你现在有一段自由时间（不可跳过）。");
+      setActions(
+        choices.map((c) => ({
+          label: `前往：${c.name}`,
+          variant: "btn-primary",
+          onClick: async () => {
+            if (c.id === "library") await library_m1();
+            if (c.id === "dorm") await dorm_m1();
+            if (c.id === "track") await track_common();
+            if (c.id === "store") await store_m1();
+            if (S.dead) return;
+            S.doneSlots = slotIndex + 1;
+            renderSchedule();
+            S.step++;
+            afterEachAction();
+            await runTimeline();
+          },
+        }))
+      );
+      return;
+    }
+
+    const pool = [
+      { id: "dorm", name: "寝室" },
+      { id: "track", name: "操场" },
+      { id: "store", name: "小卖部" },
+      { id: "work", name: "打工" },
+    ];
+    const choices = shuffle(pool).slice(0, 3);
+    setStory("空课", "自由时间（不可跳过）。");
+    setActions(
+      choices.map((c) => ({
+        label: `前往：${c.name}`,
+        variant: "btn-primary",
+        disabled: (c.id === "work" && (S.influence >= 200 || S.workedToday)),
+        onClick: async () => {
+          if (c.id === "dorm") await dorm_m2();
+          if (c.id === "track") await track_common();
+          if (c.id === "store") await store_m2();
+          if (c.id === "work") await work_m2();
+          S.doneSlots = slotIndex + 1;
+          renderSchedule();
+          S.step++;
+          afterEachAction();
+          await runTimeline();
+        },
+      }))
+    );
+  }
+
+  async function stepMeal(label) {
+    if (S.mode === "m1") {
+      // 早餐没吃：午饭前扣40 SAN
+      if (label === "午饭" && S.skippedBreakfast) {
+        S.skippedBreakfast = false;
+        await applySan(-40, "没吃早饭：午饭前精神崩坏");
+        if (S.dead) return;
+      }
+
+      setStory(label, "选择一份（或不吃）。");
+      setActions([
+        {
+          label: "普通饭（-10R）",
+          variant: "btn-primary",
+          disabled: S.money < 10,
+          onClick: async () => {
+            applyMoney(-10, `${label}：普通饭`);
+            S.step++;
+            afterEachAction();
+            await runTimeline();
+          },
+        },
+        {
+          label: "漂亮饭（-30R，SAN +20）",
+          variant: "btn-primary",
+          disabled: S.money < 30,
+          onClick: async () => {
+            applyMoney(-30, `${label}：漂亮饭`);
+            await applySan(+20, "吃得漂亮：精神回暖");
+            if (S.dead) return;
+            S.step++;
+            afterEachAction();
+            await runTimeline();
+          },
+        },
+        {
+          label: "不吃（SAN -20）",
+          variant: "btn-ghost",
+          onClick: async () => {
+            // 给死亡结局留一个“本次属于吃饭导致”的线索
+            S._lastSanLossTag = "meal";
+            await applySan(-20, `${label}不吃：饥饿惩罚`);
+            if (S.dead) return;
+            S.step++;
+            afterEachAction();
+            await runTimeline();
+          },
+        },
+      ]);
+      return;
+    }
+
+    setStory(label, "每餐扣10R（风行天下）。");
+    setActions([
+      {
+        label: `吃${label}（-10R）`,
+        variant: "btn-primary",
+        disabled: S.money < 10,
+        onClick: async () => {
+          applyMoney(-10, `${label}：吃饭`);
+          S.step++;
+          afterEachAction();
+          await runTimeline();
+        },
+      },
+    ]);
+  }
+
+  async function stepNightShop() {
+    setStory("晚上", "你路过小卖部。");
+    setActions([
+      { label: "去小卖部", variant: "btn-primary", onClick: async () => {
+        if (S.mode === "m1") await store_m1(true);
+        else await store_m2(true);
+        S.step++;
+        afterEachAction();
+        await runTimeline();
+      }},
+      { label: "不去", variant: "btn-ghost", onClick: async () => { pushLog("你路过小卖部但没进去"); S.step++; afterEachAction(); await runTimeline(); } },
+    ]);
+  }
+
+  async function stepShower() {
+    setStory("洗澡", "洗 / 不洗。");
+    setActions([
+      {
+        label: S.mode === "m1" ? "去洗澡（-5R，影响-20）" : "去洗澡（-5R，影响-20）",
+        variant: "btn-primary",
+        // 规则更新：
+        // - 闻风丧胆：若剩余生活费 <= 5R 则不可以洗澡
+        // - 风行天下：若生活费 < 5R 则不可以洗澡
+        disabled: S.mode === "m1" ? S.money <= 5 : S.money < 5,
+        onClick: async () => {
+          S._lastSpendType = "bath";
+          applyMoney(-5, "洗澡花费");
+          applyInfluence(-20, "洗澡：清理影响");
+          if (S.mode === "m1") {
+            S.showerCount += 1;
+            unlockAchievement("m1_shower5");
+            S.noShowerStreak = 0;
+          } else {
+            if (!S.firstShower) {
+              S.firstShower = true;
+              unlockAchievement("m2_first_shower");
+            }
+          }
+          S.step++;
+          afterEachAction();
+          await runTimeline();
+        },
+      },
+      {
+        label: "不洗（影响+10）",
+        variant: "btn-ghost",
+        onClick: async () => {
+          applyInfluence(+10, "不洗澡：影响上升");
+          if (S.mode === "m1") {
+            // 影响力≥40且不洗澡：累计三回合
+            if (S.influence >= 40) {
+              S.noShowerStreak += 1;
+              S.noShowerStreakMax = Math.max(S.noShowerStreakMax, S.noShowerStreak);
+              unlockAchievement("m1_no_shower_3turns");
+            } else {
+              S.noShowerStreak = 0;
+            }
+          }
+          S.step++;
+          afterEachAction();
+          await runTimeline();
+        },
+      },
+    ]);
+  }
+
+  async function stepSleep() {
+    if (S.mode === "m1") {
+      await applySan(+20, "睡觉：SAN +20");
+      if (S.dead) return;
+    }
+
+    // 结束一天，进入下一天或结算
+    S.day += 1;
+    if (S.day > S.maxDay) {
+      // 规则更新：闻风丧胆第五天结束时若未完成两次校园跑，扣20SAN并提示“体测寄了”
+      if (S.mode === "m1" && S.runsTotal < 2) {
+        toast("体测寄了", 2000);
+        await showModal({
+          title: "体测寄了",
+          body: `<div style="line-height:1.7">
+            <div>五天内未完成两次校园跑。</div>
+            <div style="margin-top:8px;color:rgba(232,238,252,.62)">系统提醒：体测寄了（SAN -20）</div>
+          </div>`,
+          actions: [{ label: "认命", value: "ok", variant: "btn-primary" }],
+          lockClose: true,
+        });
+        await applySan(-20, "体测寄了：第五天未完成两次校园跑");
+        if (S.dead) return;
+      }
+      await endRun(true, buildSuccessMeta());
+      return;
+    }
+    await newDay();
+  }
+
+  /** -----------------------------
+   * 模式一事件
+   * ----------------------------- */
+  async function library_m1() {
+    setStory("图书馆", "选座位：一般臭 or 随机分配。");
+    const pick = await showModal({
+      title: "图书馆选座",
+      body: `<div style="line-height:1.7">
+        <div>你打开图书馆选座页。</div>
+        <div style="color:rgba(232,238,252,.62);margin-top:8px">一般臭：SAN -10；随机分配：60%香人（SAN +20），40%极臭（SAN -30）。</div>
+      </div>`,
+      actions: [
+        { label: "一般臭（SAN -10）", value: "normal", variant: "btn-primary" },
+        { label: "随机分配", value: "rand", variant: "btn-ghost" },
+      ],
+      lockClose: true,
+    });
+    if (pick === "normal") {
+      S.libraryBadStreak = 0;
+      await applySan(-10, "图书馆：一般臭座位");
+      return;
+    }
+    if (chance(0.6)) {
+      S.libraryBadStreak = 0;
+      await applySan(+20, "图书馆：遇到香人");
+    } else {
+      S.libraryBadStreak += 1;
+      unlockAchievement("m1_library_bad3");
+      await applySan(-30, "图书馆：极臭暴击");
+    }
+  }
+
+  async function dorm_m1() {
+    const smoke = chance(0.35);
+    if (smoke) {
+      S.smokeCount += 1;
+      applyInfluence(+10, "寝室：烟人路过");
+      await applySan(+10, "寝室：原本能回20，但烟味打断了恢复");
+      unlockAchievement("m1_smoke6");
+    } else {
+      await applySan(+20, "寝室休息：SAN +20");
+    }
+  }
+
+  async function store_m1(fromNight = false) {
+    const body = `
+      <div style="line-height:1.7">
+        <div>货架上摆着一些“明明不该在这里出现”的东西。</div>
+        <div style="margin-top:8px;color:rgba(232,238,252,.62)">当前R：<b>${S.money}</b>；库存：快乐水 ${S.inventory.water} / 香水 ${S.inventory.perfume} / 韭菜盒子 ${S.inventory.leek} / 蚕豆 ${S.inventory.broadBeans}</div>
+      </div>
+    `;
+    const pick = await showModal({
+      title: fromNight ? "晚上·小卖部" : "小卖部",
+      body,
+      actions: [
+        { label: "买快乐水（-100R，SAN +50）", value: "water", variant: "btn-primary", disabled: S.money < 100 },
+        { label: "买香水（-30R，清新BUFF）", value: "perfume", variant: "btn-ghost", disabled: S.money < 30 },
+        { label: "买韭菜盒子（-20R）", value: "leek", variant: "btn-ghost", disabled: S.money < 20 },
+        { label: "买蚕豆（-15R）", value: "beans", variant: "btn-ghost", disabled: S.money < 15 },
+        { label: "离开", value: "leave", variant: "btn-quiet" },
+      ],
+      lockClose: true,
+    });
+
+    if (pick === "water") {
+      applyMoney(-100, "购买快乐水");
+      S.inventory.water += 1;
+      S.boughtWaterCount += 1;
+      unlockAchievement("m1_water2");
+      toast("已放入背包：快乐水", 1600);
+      return;
+    }
+    if (pick === "perfume") {
+      applyMoney(-30, "购买香水");
+      S.inventory.perfume += 1;
+      toast("已放入背包：香水", 1600);
+      return;
+    }
+    if (pick === "leek") {
+      applyMoney(-20, "购买韭菜盒子");
+      S.inventory.leek += 1;
+      toast("已放入背包：韭菜盒子", 1600);
+      return;
+    }
+    if (pick === "beans") {
+      applyMoney(-15, "购买蚕豆");
+      S.inventory.broadBeans += 1;
+      toast("已放入背包：蚕豆", 1600);
+      return;
+    }
+  }
+
+  async function skipClass_m1() {
+    S.counselorRisk = clamp(S.counselorRisk + 20, 0, 100);
+    pushLog(`约谈风险 +20%（当前 ${fmtPct(S.counselorRisk)}）`);
+
+    const riskBefore = S.counselorRisk;
+    const hit = riskBefore >= 100 ? true : chance(riskBefore / 100);
+    if (!hit) return;
+
+    S.counselorCount += 1;
+    S.counselorRisk = 50;
+    pushLog("导员约谈触发：风险重置为50%");
+
+    // 导员挚友：若下一次翘课在风险=50时又触发
+    if (S._lastCounselJustReset) S.counselorFriend = true;
+    S._lastCounselJustReset = true;
+
+    await applySan(-50, "导员约谈：SAN -50");
+    unlockAchievement("m1_counsel3");
+  }
+
+  async function classroomSeat_m1() {
+    const perfumeOn = S.buffs.perfumeSeat > 0;
+    const res = await seatMiniGame({
+      title: `教室选座（步数3）`,
+      valueLabel: "臭值",
+      min: 0,
+      max: 80,
+      perfumeOn,
+    });
+    if (!res) return;
+    const raw = res.value;
+    const eff = perfumeOn ? Math.round(raw * 0.6) : raw;
+    if (perfumeOn) S.buffs.perfumeSeat = Math.max(0, S.buffs.perfumeSeat - 1);
+
+    if (res.forced) {
+      S.forcedSeatCount += 1;
+      unlockAchievement("m1_forced_seat3");
+      pushLog(`步数耗尽：被强制落座（臭值 ${raw}）`);
+    } else {
+      pushLog(`落座完成（臭值 ${raw}）`);
+    }
+    const loss = Math.max(1, Math.round(eff * 0.3));
+    await applySan(-loss, perfumeOn ? "座位臭味被香水缓冲" : "座位臭味冲击");
+  }
+
+  async function recess_m1() {
+    // 分前半段 / 后半段，中间可选离开
+    const stage1Smoke = chance(0.4);
+    if (stage1Smoke) {
+      S.smokeCount += 1;
+      applyInfluence(+10, "课间放风（前半段）：遇到烟人");
+      await applySan(-20, "烟人贴脸：SAN -20");
+      if (S.dead) return;
+      const pick = await showModal({
+        title: "课间放风",
+        body: `<div style="line-height:1.7">
+          <div>前半段：烟人出现。你要立刻离开吗？</div>
+          <div style="color:rgba(232,238,252,.62);margin-top:8px">选择离开将跳过后半段。</div>
+        </div>`,
+        actions: [
+          { label: "立刻离开", value: "leave", variant: "btn-primary" },
+          { label: "继续待着", value: "stay", variant: "btn-ghost" },
+        ],
+        lockClose: true,
+      });
+      if (pick === "leave") {
+        S.leftAfterSmokeOnce = true;
+        unlockAchievement("m1_leave_after_smoke");
+        pushLog("你果断离开：后半段跳过");
+        return;
+      }
+      // 进入后半段
+      await stage2Smoke_m1(true);
+      return;
+    }
+
+    await applySan(+30, "课间放风（前半段）：独享清新，SAN +30");
+    const pick2 = await showModal({
+      title: "课间放风",
+      body: `<div style="line-height:1.7">
+        <div>前半段很顺利。你要继续留到后半段吗？</div>
+        <div style="color:rgba(232,238,252,.62);margin-top:8px">后半段烟人出现概率更高。</div>
+      </div>`,
+      actions: [
+        { label: "离开", value: "leave", variant: "btn-primary" },
+        { label: "继续待着", value: "stay", variant: "btn-ghost" },
+      ],
+      lockClose: true,
+    });
+    if (pick2 === "stay") {
+      await stage2Smoke_m1(false);
+    } else {
+      pushLog("你离开了放风区域");
+    }
+  }
+
+  async function stage2Smoke_m1(enteredAfterSmoke) {
+    const stage2Smoke = chance(0.65);
+    if (!stage2Smoke) {
+      await applySan(+20, "课间放风（后半段）：还算平安，SAN +20");
+      return;
+    }
+    S.smokeCount += 1;
+    applyInfluence(+10, "课间放风（后半段）：烟人出现");
+    await applySan(-20, "烟人再临：SAN -20");
+    if (S.dead) {
+      S._deathFlag_stayStage2 = true;
+      S._deathEnteredAfterSmoke = enteredAfterSmoke;
+    }
+  }
+
+  /** -----------------------------
+   * 模式二事件
+   * ----------------------------- */
+  async function store_m2(fromNight = false) {
+    const body = `
+      <div style="line-height:1.7">
+        <div>小卖部：增加影响力的道具。</div>
+        <div style="margin-top:8px;color:rgba(232,238,252,.62)">当前R：<b>${S.money}</b>；臭屁剩余：<b>${S.fartCharges}</b>；影响人数：<b>${S.people}</b></div>
+      </div>
+    `;
+    const pick = await showModal({
+      title: fromNight ? "晚上·小卖部" : "小卖部",
+      body,
+      actions: [
+        { label: "买蚕豆零食（-20R，影响+20，得1次臭屁）", value: "beans", variant: "btn-primary", disabled: S.money < 20 },
+        { label: "买搓澡巾（-30R，影响-20）", value: "towel", variant: "btn-ghost", disabled: S.money < 30 },
+        { label: "离开", value: "leave", variant: "btn-quiet" },
+      ],
+      lockClose: true,
+    });
+    if (pick === "beans") {
+      S._lastSpendType = "other";
+      applyMoney(-20, "购买蚕豆零食");
+      S.buyBeans += 1;
+      if (!S.firstBeans) {
+        S.firstBeans = true;
+        unlockAchievement("m2_first_beans");
+      }
+      applyInfluence(+20, "蚕豆加成");
+      S.fartCharges += 1;
+      // 影响人数 +0.3x影响力
+      applyPeople(Math.round(0.3 * S.influence), "蚕豆：影响扩散");
+      unlockAchievement("m2_beans4");
+      toast("获得技能：释放臭屁（+1次）", 1800);
+      return;
+    }
+    if (pick === "towel") {
+      S._lastSpendType = "bath";
+      applyMoney(-30, "购买搓澡巾");
+      applyInfluence(-20, "搓澡巾：影响下降");
+      return;
+    }
+  }
+
+  async function dorm_m2() {
+    const canJet = S.influence >= 150;
+    const pick = await showModal({
+      title: "寝室",
+      body: `<div style="line-height:1.7">
+        <div>你回到寝室。</div>
+        <div style="color:rgba(232,238,252,.62);margin-top:8px">${canJet ? "你感觉肚子里有股力量…" : "今天比较正常。"} </div>
+      </div>`,
+      actions: [
+        { label: canJet ? "上厕所：喷射战士" : "上厕所（条件不足）", value: "jet", variant: "btn-primary", disabled: !canJet },
+        { label: "大扫除（影响-10，人数-5）", value: "clean", variant: "btn-ghost" },
+        { label: "离开", value: "leave", variant: "btn-quiet" },
+      ],
+      lockClose: true,
+    });
+    if (pick === "jet") {
+      S.jetTriggered += 1;
+      unlockAchievement("m2_jet");
+      pushLog("喷射战士：音效占位（3s）");
+      toast("（音效占位）窜稀音效 3s", 1800);
+      return;
+    }
+    if (pick === "clean") {
+      S.cleanCount += 1;
+      unlockAchievement("m2_clean3");
+      applyInfluence(-10, "大扫除");
+      applyPeople(-5, "口碑回升");
+      return;
+    }
+  }
+
+  async function work_m2() {
+    if (S.influence >= 200) {
+      toast("影响力≥200：无法打工", 1600);
+      return;
+    }
+    if (S.workedToday) {
+      toast("今天已经打过工了", 1600);
+      return;
+    }
+    S.workedToday = true;
+    S.workCount += 1;
+    if (S.influence >= 180 && S.influence <= 199) {
+      S.workNearBan += 1;
+      unlockAchievement("m2_work2_180_199");
+    }
+    applyMoney(+50, "打工：生活费+50");
+    applyInfluence(+10, "打工：影响+10");
+  }
+
+  async function classroomSeat_m2() {
+    const res = await seatMiniGame({
+      title: "教室选座（步数3）",
+      valueLabel: "人群密度",
+      min: 5,
+      max: 50,
+      perfumeOn: false,
+    });
+    if (!res) return;
+    const density = res.value;
+    if (res.forced) {
+      S.forcedSeatCount += 1;
+      unlockAchievement("m2_forced2");
+      pushLog(`步数耗尽：被强制落座（密度 ${density}）`);
+    } else {
+      pushLog(`落座完成（密度 ${density}）`);
+    }
+    // “并获得相应的影响人数”——这里做一个随影响力放大的近似
+    const gain = Math.round(density * (1 + S.influence / 100));
+    applyPeople(gain, "传播魅力：影响人数增加");
+  }
+
+  async function recess_m2() {
+    // 放风（可选择不去）
+    const pick = await showModal({
+      title: "放风",
+      body: `<div style="line-height:1.7">
+        <div>你要去放风吗？</div>
+        <div style="color:rgba(232,238,252,.62);margin-top:8px">40%碰到同学：影响-10，人数+5~15；60%独享清闲：影响-10。</div>
+      </div>`,
+      actions: [
+        { label: "去放风", value: "go", variant: "btn-primary" },
+        { label: "不去", value: "skip", variant: "btn-ghost" },
+      ],
+      lockClose: true,
+    });
+    if (pick !== "go") {
+      pushLog("你选择不去放风");
+      return;
+    }
+    applyInfluence(-10, "放风：影响-10");
+    if (chance(0.4)) {
+      const add = randInt(5, 15);
+      applyPeople(add, "放风：碰到同学");
+      const leave = await showModal({
+        title: "碰到同学",
+        body: `<div style="line-height:1.7">
+          <div>你碰到了同学，对方表情逐渐复杂。</div>
+          <div style="color:rgba(232,238,252,.62);margin-top:8px">你要立刻离开吗？</div>
+        </div>`,
+        actions: [
+          { label: "立刻离开", value: "leave", variant: "btn-primary" },
+          { label: "硬聊两句", value: "stay", variant: "btn-ghost" },
+        ],
+        lockClose: true,
+      });
+      if (leave === "leave") {
+        S.socialAvoid += 1;
+        unlockAchievement("m2_social_avoid2");
+        pushLog("你成功闪避社交");
+      } else {
+        pushLog("你硬聊了两句，空气也跟着沉默");
+      }
+      return;
+    }
+    pushLog("放风：独享清闲（但影响还是-10）");
+  }
+
+  /** -----------------------------
+   * 共同事件：操场
+   * ----------------------------- */
+  async function track_common() {
+    if (S.ranToday) {
+      toast("今天已经跑过了", 1600);
+      return;
+    }
+    S.ranToday = true;
+    S.runsTotal += 1;
+    applyInfluence(+10, "操场：跑乐跑");
+    if (S.mode === "m2") {
+      applyPeople(Math.round(0.05 * S.influence), "操场：影响人数增加");
+    }
+    pushLog(`校园跑进度：${S.mode === "m1" ? `${S.runsTotal}/2(五天内)` : `${S.runsTotal}/1(三天内)`}`);
+  }
+
+  /** -----------------------------
+   * 道具：背包 / 技能
+   * ----------------------------- */
+  async function openInventory() {
+    if (S.mode === "m1") {
+      const body = `
+        <div style="line-height:1.7">
+          <div style="margin-bottom:8px;color:rgba(232,238,252,.62)">点击使用（部分效果会影响下一次行动）。</div>
+          <div class="grid" style="grid-template-columns:repeat(2,1fr);gap:10px">
+            ${invCard("快乐水", `数量：${S.inventory.water}<br/>效果：SAN +50`, S.inventory.water > 0)}
+            ${invCard("香水", `数量：${S.inventory.perfume}<br/>效果：清新BUFF（下一次选座减轻臭味）`, S.inventory.perfume > 0)}
+            ${invCard("韭菜盒子", `数量：${S.inventory.leek}<br/>效果：影响+10；次日影响+5`, S.inventory.leek > 0)}
+            ${invCard("蚕豆", `数量：${S.inventory.broadBeans}<br/>效果：影响+20（用于某些成就/结局条件）`, S.inventory.broadBeans > 0)}
+          </div>
+        </div>
+      `;
+      const pick = await showModal({
+        title: "背包",
+        body,
+        actions: [
+          { label: "使用：快乐水", value: "water", variant: "btn-primary", disabled: S.inventory.water <= 0 },
+          { label: "使用：香水", value: "perfume", variant: "btn-ghost", disabled: S.inventory.perfume <= 0 },
+          { label: "使用：韭菜盒子", value: "leek", variant: "btn-ghost", disabled: S.inventory.leek <= 0 },
+          { label: "使用：蚕豆", value: "beans", variant: "btn-ghost", disabled: S.inventory.broadBeans <= 0 },
+          { label: "关闭", value: "close", variant: "btn-quiet" },
+        ],
+        lockClose: false,
+      });
+      if (pick === "water") {
+        S.inventory.water -= 1;
+        await applySan(+50, "快乐水：SAN +50");
+        return;
+      }
+      if (pick === "perfume") {
+        S.inventory.perfume -= 1;
+        S.buffs.perfumeSeat += 1;
+        pushLog("香水使用：清新BUFF已就绪（下一次选座）");
+        return;
+      }
+      if (pick === "leek") {
+        S.inventory.leek -= 1;
+        applyInfluence(+10, "韭菜盒子：嘴臭值立刻+10");
+        S.nextDayInfluenceBonus += 5;
+        return;
+      }
+      if (pick === "beans") {
+        S.inventory.broadBeans -= 1;
+        S.ateBroadBeans = true;
+        applyInfluence(+20, "蚕豆：不明增幅");
+        return;
+      }
+      return;
+    }
+
+    const body = `
+      <div style="line-height:1.7">
+        <div style="margin-bottom:8px;color:rgba(232,238,252,.62)">技能与状态。</div>
+        <div class="grid" style="grid-template-columns:repeat(2,1fr);gap:10px">
+          ${invCard("释放臭屁", `剩余次数：${S.fartCharges}<br/>效果：影响+20；人数+0.3x影响力（并触发5s音效占位）`, S.fartCharges > 0)}
+          ${invCard("当前影响力", `影响：${S.influence}<br/>人数：${S.people}`, true)}
+        </div>
+      </div>
+    `;
+    const pick = await showModal({
+      title: "技能栏",
+      body,
+      actions: [
+        { label: "释放臭屁", value: "fart", variant: "btn-primary", disabled: S.fartCharges <= 0 },
+        { label: "关闭", value: "close", variant: "btn-quiet" },
+      ],
+      lockClose: false,
+    });
+    if (pick === "fart") {
+      S.fartCharges -= 1;
+      S.fartUsed += 1;
+      applyInfluence(+20, "释放臭屁：影响+20");
+      applyPeople(Math.round(0.3 * S.influence), "臭屁扩散：影响人数增加");
+      toast("（音效占位）奶龙捧腹大笑 5s", 1900);
+      unlockAchievement("m2_fart3");
+    }
+  }
+
+  function invCard(title, html, enabled) {
+    return `
+      <div style="
+        border:1px solid rgba(232,238,252,.12);
+        background:rgba(10,14,18,.22);
+        border-radius:18px;
+        padding:12px 12px 10px;
+        opacity:${enabled ? "1" : ".55"};
+      ">
+        <div style="font-weight:820;margin-bottom:6px">${escapeHtml(title)}</div>
+        <div style="color:rgba(232,238,252,.72);font-size:12px;line-height:1.6">${html}</div>
+      </div>
+    `;
+  }
+
+  /** -----------------------------
+   * 选座小游戏
+   * ----------------------------- */
+  async function seatMiniGame({ title, valueLabel, min, max, perfumeOn }) {
+    const size = 5;
+    const grid = Array.from({ length: size }, () => Array.from({ length: size }, () => randInt(min, max)));
+    let steps = 3;
+    let cursor = { r: randInt(0, 4), c: randInt(0, 4) };
+    let chosen = null;
+
+    const renderBody = () => `
+      <div style="line-height:1.7">
+        <div style="color:rgba(232,238,252,.62)">只能看到1步范围内的座位；可消耗步数继续刷新视野。</div>
+        <div style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap">
+          <span class="pill">剩余步数：${steps}</span>
+          ${perfumeOn ? `<span class="pill" style="border-color:rgba(99,255,183,.35);color:rgba(99,255,183,.92)">清新BUFF：已生效</span>` : ""}
+        </div>
+        <div class="grid" id="seatGrid">
+          ${grid
+            .map((row, r) =>
+              row
+                .map((v, c) => {
+                  const dist = Math.abs(r - cursor.r) + Math.abs(c - cursor.c);
+                  const revealed = dist <= 1;
+                  const cls = ["cell", revealed ? "is-revealed" : "is-hidden", perfumeOn ? "is-perfume" : ""].join(" ");
+                  const label = revealed ? `<div class="v">${v}</div><div class="l">${escapeHtml(valueLabel)}</div>` : `<div class="v">?</div><div class="l">未知</div>`;
+                  return `<div class="${cls}" data-r="${r}" data-c="${c}" data-rev="${revealed ? 1 : 0}">${label}</div>`;
+                })
+                .join("")
+            )
+            .join("")}
+        </div>
+        <div style="margin-top:10px;color:rgba(232,238,252,.62);font-size:12px">
+          当前视野中心：(${cursor.r + 1},${cursor.c + 1})。提示：一直不坐，步数用完会被强制落座（中心格）。
+        </div>
+      </div>
+    `;
+
+    while (steps > 0 && !chosen) {
+      const res = await seatPromptOnce(title, renderBody(), steps);
+      if (res?.type === "refresh") {
+        steps -= 1;
+        cursor = { r: randInt(0, 4), c: randInt(0, 4) };
+        continue;
+      }
+      if (res?.type === "pick") {
+        chosen = { value: res.value, forced: false };
+        break;
+      }
+      // 用户关闭/取消：按“没选”处理，进入强制落座
+      break;
+    }
+
+    if (!chosen) {
+      const forcedValue = grid[cursor.r][cursor.c];
+      return { value: forcedValue, forced: true };
+    }
+    return chosen;
+  }
+
+  function seatPromptOnce(title, bodyHtml, steps) {
+    return new Promise((resolve) => {
+      modalRoot.hidden = false;
+      modalTitle.textContent = title || "选座";
+      modalBody.innerHTML = bodyHtml;
+      modalActions.innerHTML = "";
+      modalClose.style.visibility = "hidden";
+      modalRoot.querySelector(".modal-backdrop").dataset.close = "0";
+
+      const onPick = (val) => {
+        cleanup();
+        modalRoot.hidden = true;
+        resolve(val);
+      };
+
+      const btnRefresh = document.createElement("button");
+      btnRefresh.className = "btn btn-primary";
+      btnRefresh.textContent = "继续找（消耗1步）";
+      btnRefresh.disabled = steps <= 0;
+      btnRefresh.addEventListener("click", () => onPick({ type: "refresh" }));
+
+      const btnForce = document.createElement("button");
+      btnForce.className = "btn btn-ghost";
+      btnForce.textContent = "算了（耗尽步数并强制落座）";
+      btnForce.addEventListener("click", () => onPick(null));
+
+      modalActions.appendChild(btnRefresh);
+      modalActions.appendChild(btnForce);
+
+      const modal = modalRoot.querySelector(".modal");
+      const clickHandler = (e) => {
+        const el = /** @type {HTMLElement} */ (e.target).closest?.(".cell");
+        if (!el) return;
+        if (el.dataset.rev !== "1") return;
+        const vText = el.querySelector(".v")?.textContent || "0";
+        onPick({ type: "pick", value: Number(vText) });
+      };
+      modal.addEventListener("click", clickHandler);
+
+      const cleanup = () => {
+        modal.removeEventListener("click", clickHandler);
+      };
+    });
+  }
+
+  /** -----------------------------
+   * 结局 / 死亡判定
+   * ----------------------------- */
+  function buildDeathMeta() {
+    // 优先级：更具体的死亡结局
+    if (S.mode !== "m1") {
+      return { reason: "中道崩殂", desc: "（风行天下）本Demo暂不设死亡分支。", raw: "" };
+    }
+    const day = S.day;
+    const raw = "";
+    if (day === 5 && S.step <= 6) {
+      return { reason: "咫尺成功", desc: "在第五天午饭后SAN归零。", raw };
+    }
+    if (S._deathFlag_stayStage2) {
+      return {
+        reason: "三和大神",
+        desc: "你选择了留下，烟雾选择了你。你倒在了放风的最后一秒，手里还攥着一瓶没喝完的快乐水。",
+        raw,
+      };
+    }
+    // 饭导致死亡：根据最近一次原因粗判（这里用日志无法反查，使用一个flag）
+    if (S._deathByMealSkip) {
+      return {
+        reason: "食堂惨案",
+        desc: "饥饿和异味同时击倒了你。后来同学们路过食堂角落，都会下意识绕开那个位置。",
+        raw,
+      };
+    }
+    if (S.smokeCount >= 8) {
+      return {
+        reason: "烟雾缭绕",
+        desc: "你不是被熏倒的，是被烟人当成同类，拉去阳台开会了。",
+        raw,
+      };
+    }
+    if (S.counselorCount >= 4) {
+      return {
+        reason: "导员之友",
+        desc: "辅导员在你的档案上批注：此生已尽力，奈何味太重。",
+        raw,
+      };
+    }
+    if (day === 3 || day === 4) {
+      return { reason: "中道崩殂", desc: `你倒在了第${day}天。`, raw };
+    }
+    return { reason: "肺部感染", desc: "普通死亡。", raw };
+  }
+
+  function buildSuccessMeta() {
+    if (S.mode === "m2") {
+      // 影响人数结算
+      const hidden = S.influence < 40;
+      if (hidden) return { reason: "浪子回头", desc: "当影响力低于最初始40，你终于开始‘做人’了。", raw: "" };
+      const p = S.people;
+      // 规则更新：≤100 / 100-400 / 400-900 / >900
+      if (p <= 100) return { reason: "入味：良心发现", desc: "影响人数≤100。你似乎还留有一点底线。", raw: "" };
+      if (p <= 400) return { reason: "醇厚：十里飘香", desc: "100~400人。味道开始形成口碑。", raw: "" };
+      if (p <= 900) return { reason: "存在感极强：百里香", desc: "400~900人。你走到哪，哪就开会。", raw: "" };
+      return { reason: "风云人物", desc: "900+。你已经成为校园传说的一部分。", raw: "" };
+    }
+
+    // m1：通关结局
+    const neverSmoke = S.smokeCount === 0;
+    if (neverSmoke) return { reason: "天选之子", desc: "全校都知道烟人的存在，只有你一脸茫然。", raw: "" };
+    if (S.san <= 10 && S.influence === 0) return { reason: "边缘行者", desc: "你在崩溃边缘反复横跳，却始终保持一尘不染。", raw: "" };
+    if (S.counselorCount >= 3 && S.influence === 0) return { reason: "导员的救赎", desc: "多次谈话，终能改过自新（至少表面上）。", raw: "" };
+    if (S.transferCount >= 6 && S.influence >= 60) return { reason: "转移支付", desc: "精神值完好无损，但名声已经烂透了。", raw: "" };
+    if (S.influence === 0) return { reason: "出淤泥而不染", desc: "影响力归零。你干净得不像话。", raw: "" };
+    if (S.san <= 20) return { reason: "劫后余生", desc: "通关时SAN≤20。你活下来了，但不多。", raw: "" };
+    if (S.san <= 60) return { reason: "侥幸存活", desc: "SAN 20~60。勉强不倒。", raw: "" };
+    return { reason: "平稳存活", desc: "你顺利度过了这一周。", raw: "" };
+  }
+
+  async function endRun(success, meta) {
+    if (S.dead) return;
+    if (!success) S.dead = true;
+    S.endMeta = { success, meta };
+
+    // 结算解锁：checkEnd
+    ACH.forEach((a) => {
+      if (a.mode !== S.mode) return;
+      if (a.checkEnd && !save.unlocked[a.id] && a.checkEnd(S)) unlockAchievement(a.id);
+    });
+    setScreen("end");
+    screenEndTitle.textContent = meta.reason;
+    screenEndDesc.textContent = meta.desc || "";
+    endStats.innerHTML = "";
+
+    const chips = [];
+    chips.push(chip("R", S.money));
+    if (S.mode === "m1") chips.push(chip("SAN", S.san));
+    chips.push(chip("影响", S.influence));
+    if (S.mode === "m2") chips.push(chip("人数", S.people));
+    if (S.mode === "m1") chips.push(chip("校园跑", `${S.runsTotal}/2`));
+    if (S.mode === "m2") chips.push(chip("校园跑", `${S.runsTotal}/1`));
+    chips.push(chip("成就", `${countUnlocked(S.mode)}/${countTotal(S.mode)}`));
+
+    endStats.innerHTML = chips.join("");
+  }
+
+  function chip(k, v) {
+    return `<div class="stat"><span class="stat-k">${escapeHtml(k)}</span><span class="stat-v">${escapeHtml(v)}</span></div>`;
+  }
+
+  function countTotal(mode) {
+    return ACH.filter((a) => a.mode === mode).length;
+  }
+  function countUnlocked(mode) {
+    const ids = ACH.filter((a) => a.mode === mode).map((a) => a.id);
+    return ids.filter((id) => !!save.unlocked[id]).length;
+  }
+
+  /** -----------------------------
+   * 成就墙界面
+   * ----------------------------- */
+  function openAchievements() {
+    setScreen("achievements");
+    const unlocked = countUnlocked("m1") + countUnlocked("m2");
+    const total = countTotal("m1") + countTotal("m2");
+    achSummary.textContent = `已达成 ${unlocked} / ${total} · 游玩次数 ${save.meta.plays || 0}`;
+
+    achGrid.innerHTML = "";
+    ACH.forEach((a) => {
+      const ok = !!save.unlocked[a.id];
+      const div = document.createElement("div");
+      div.className = `ach-item ${ok ? "" : "locked"}`.trim();
+      div.innerHTML = `
+        <div class="top">
+          <div>
+            <div class="name">${escapeHtml(a.name)}</div>
+            <div class="hintline">${escapeHtml(a.mode === "m1" ? "闻风丧胆" : "风行天下")}</div>
+          </div>
+          <div class="stars">${stars(a.stars)}</div>
+        </div>
+        <div class="desc">${escapeHtml(ok ? a.desc : "未达成")}</div>
+        <div class="hintline">${escapeHtml(ok ? "已记录" : `提示：${a.hint}`)}</div>
+      `;
+      achGrid.appendChild(div);
+    });
+  }
+
+  /** -----------------------------
+   * 绑定事件
+   * ----------------------------- */
+  btnStartMode1.addEventListener("click", () => startRun("m1"));
+  btnStartMode2.addEventListener("click", () => startRun("m2"));
+  btnOpenAchievements.addEventListener("click", openAchievements);
+  btnAchBack.addEventListener("click", () => setScreen("title"));
+  btnGoLauncher?.addEventListener("click", () => (location.href = "index.html"));
+
+  btnBackToTitle.addEventListener("click", async () => {
+    const pick = await showModal({
+      title: "返回标题",
+      body: `<div style="line-height:1.7">确定要返回标题吗？当前进度不会保存（成就会保留）。</div>`,
+      actions: [
+        { label: "返回", value: "yes", variant: "btn-primary" },
+        { label: "继续游玩", value: "no", variant: "btn-ghost" },
+      ],
+      lockClose: true,
+    });
+    if (pick === "yes") setScreen("title");
+  });
+
+  btnInventory.addEventListener("click", () => openInventory());
+
+  btnRestart.addEventListener("click", () => {
+    if (!S) return setScreen("title");
+    startRun(S.mode);
+  });
+  btnEndToTitle.addEventListener("click", () => setScreen("title"));
+  btnEndAchievements.addEventListener("click", openAchievements);
+
+  btnResetAll.addEventListener("click", async () => {
+    const pick = await showModal({
+      title: "清空存档",
+      body: `<div style="line-height:1.7">将清空所有成就记录与统计。确定吗？</div>`,
+      actions: [
+        { label: "清空", value: "yes", variant: "btn-primary" },
+        { label: "取消", value: "no", variant: "btn-ghost" },
+      ],
+      lockClose: true,
+    });
+    if (pick !== "yes") return;
+    localStorage.removeItem(STORAGE_KEY);
+    location.reload();
+  });
+
+  // 初始屏
+  setScreen("title");
+})();
+    </script>
+  </body>
+</html>

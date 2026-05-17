@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light" />
+  <title>异闻录：模式选择</title>
+  <style>
+    :root{
+      --bg0:#f6f8fc;
+      --bg1:#ffffff;
+      --text:rgba(15,23,42,0.92);
+      --muted:rgba(15,23,42,0.62);
+      --line:rgba(15,23,42,0.12);
+      --card:rgba(255,255,255,0.88);
+      --shadow:0 18px 60px rgba(15,23,42,0.14);
+      --blue:#2563eb;
+      --pink:#ec4899;
+      --purple:#a855f7;
+      --green:#10b981;
+      --font: ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", Arial, sans-serif;
+    }
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      font-family:var(--font);
+      background:
+        radial-gradient(900px 560px at 18% 10%, rgba(37,99,235,0.10), transparent 55%),
+        radial-gradient(900px 560px at 80% 18%, rgba(168,85,247,0.10), transparent 55%),
+        linear-gradient(180deg, var(--bg0), var(--bg1));
+      color:var(--text);
+      overflow:hidden;
+    }
+    .bg{
+      position:fixed; inset:0;
+      background-image: url("assets/campus_ground.jpg");
+      background-size: cover;
+      background-position:center;
+      filter:saturate(1.02);
+      transform: scale(1.03);
+      opacity: .22;
+      pointer-events:none;
+    }
+    .bg::after{
+      content:"";
+      position:absolute; inset:0;
+      background: linear-gradient(180deg, rgba(246,248,252,0.80), rgba(255,255,255,0.92));
+    }
+    .wrap{
+      position:relative;
+      height:100%;
+      display:grid;
+      place-items:center;
+      padding: 18px;
+    }
+    .card{
+      width:min(980px, 100%);
+      border:1px solid var(--line);
+      background: var(--card);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      backdrop-filter: blur(10px);
+    }
+    .hd{
+      padding: 16px 16px 10px;
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap: 10px;
+      border-bottom:1px solid rgba(15,23,42,0.08);
+      background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,255,255,0.80));
+    }
+    .brand{
+      display:flex; gap:12px; align-items:flex-start;
+    }
+    .mark{
+      width: 46px; height:46px; border-radius: 14px;
+      background:
+        radial-gradient(14px 14px at 32% 28%, rgba(37,99,235,0.95), transparent 58%),
+        radial-gradient(18px 18px at 70% 62%, rgba(168,85,247,0.85), transparent 60%),
+        linear-gradient(135deg, rgba(255,255,255,0.65), rgba(255,255,255,0));
+      border:1px solid rgba(37,99,235,0.20);
+    }
+    h1{
+      margin:0;
+      font-size: 24px;
+      letter-spacing:.02em;
+    }
+    .sub{ margin-top: 4px; color: var(--muted); font-size: 13px; line-height: 1.4; }
+    .btnRow{ display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; }
+    .btn{
+      appearance:none;
+      border:1px solid rgba(15,23,42,0.14);
+      background: rgba(15,23,42,0.04);
+      color: var(--text);
+      padding: 9px 12px;
+      border-radius: 12px;
+      font-size: 14px;
+      cursor:pointer;
+      transition: .12s ease;
+      font-weight: 700;
+    }
+    .btn:hover{ background: rgba(15,23,42,0.07); transform: translateY(-1px); }
+    .btn.primary{
+      border-color: rgba(37,99,235,0.36);
+      background: linear-gradient(180deg, rgba(37,99,235,0.18), rgba(37,99,235,0.06));
+    }
+    .bd{
+      padding: 16px;
+      display:grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 16px;
+    }
+    @media (max-width: 900px){
+      .bd{ grid-template-columns: 1fr; }
+    }
+    .story{
+      border: 1px solid rgba(15,23,42,0.10);
+      border-radius: 16px;
+      padding: 14px;
+      background: rgba(255,255,255,0.86);
+      min-height: 260px;
+    }
+    .story .k{
+      font-size: 12px;
+      color: rgba(37,99,235,0.95);
+      font-weight: 900;
+      letter-spacing:.08em;
+    }
+    .story h2{
+      margin: 6px 0 10px;
+      font-size: 18px;
+    }
+    .type{
+      white-space: pre-wrap;
+      line-height: 1.7;
+      font-size: 13px;
+      color: rgba(15,23,42,0.84);
+      min-height: 180px;
+    }
+    .cursor{
+      display:inline-block;
+      width: 8px;
+      height: 14px;
+      background: rgba(15,23,42,0.35);
+      margin-left: 2px;
+      animation: blink 1.0s steps(2) infinite;
+      vertical-align: -2px;
+    }
+    @keyframes blink{ 50%{ opacity: 0; } }
+    .modes{
+      display:grid;
+      gap: 12px;
+    }
+    .modeCard{
+      border:1px solid rgba(15,23,42,0.10);
+      border-radius: 16px;
+      padding: 14px;
+      background: rgba(255,255,255,0.86);
+    }
+    .modeTitle{ font-weight: 900; font-size: 16px; }
+    .modeDesc{ margin-top:6px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .modeActions{ margin-top: 10px; display:flex; gap:10px; flex-wrap:wrap; }
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap: 6px;
+      font-size: 12px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border:1px solid rgba(15,23,42,0.10);
+      background: rgba(15,23,42,0.03);
+      color: rgba(15,23,42,0.78);
+      margin-top: 8px;
+    }
+  </style>
+  </head>
+<body>
+  <div class="bg"></div>
+  <div class="wrap">
+    <div class="card">
+      <div class="hd">
+        <div class="brand">
+          <div class="mark"></div>
+          <div>
+            <h1>《异闻录》</h1>
+            <div class="sub">一部关于气味、生存与青春的非官方校园史</div>
+          </div>
+        </div>
+        <div class="btnRow">
+          <button class="btn" id="btnSkip">跳过开场</button>
+          <button class="btn primary" id="btnShowModes">选择模式</button>
+        </div>
+      </div>
+      <div class="bd">
+        <div class="story">
+          <div class="k">序章</div>
+          <h2>那个夏天之后，一切都变了</h2>
+          <div class="type" id="type"></div>
+        </div>
+        <div class="modes" id="modes" style="display:none">
+          <div class="modeCard">
+            <div class="modeTitle">模式A：像素行动（大地图）</div>
+            <div class="modeDesc">走路探索校园、进建筑触发事件、臭圈扣SAN；支持横屏、BGM、成就墙、随机“？NPC”。</div>
+            <div class="pill">推荐：喜欢“走地图+生存压迫感”</div>
+            <div class="modeActions">
+              <button class="btn primary" onclick="location.href='ywl_pixel.html?v=18'">进入模式A</button>
+            </div>
+          </div>
+          <div class="modeCard">
+            <div class="modeTitle">模式B：日程叙事（单文件）</div>
+            <div class="modeDesc">偏“文本/抉择/日程推进”的版本（已统一到同一世界观与数值取舍：扣SAN可转为影响力上涨）。</div>
+            <div class="pill">推荐：喜欢“文字事件+策略抉择”</div>
+            <div class="modeActions">
+              <button class="btn primary" onclick="location.href='ywl_single.html?v=18'">进入模式B</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    const STORY = [
+      "序章：那个夏天之后，一切都变了",
+      "那件事的起因，至今没有定论。",
+      "",
+      "有人说，是那年九月格外闷热，军训结束后，男生宿舍的洗衣机就没停过。",
+      "有人说，是食堂新推出的“韭菜盒子”，在同学间掀起了一股不可逆的饮食潮流。",
+      "也有人说，真正的问题出在体育课被砍了一半——当代大学生的心肺功能，已经撑不起一堂完整的乐跑了。",
+      "",
+      "但无论如何，所有人都记得那个转折点。",
+      "",
+      "教务系统崩溃了。选课记录清零，排课连锁反应像多米诺骨牌一样倒下：",
+      "体育课和近现代史纲要挤在同一天上午，高等数学被塞进午休时段，英语课——全部排在周五下午最后一节。",
+      "",
+      "紧接着，图书馆自习座位稀缺，澡堂热水限时供应，乐跑系统频繁崩溃。",
+      "学生们的精神状态逐渐下滑，校园里的气味也开始变得微妙。",
+      "",
+      "你必须学会：选座时预判气味分布，放风时警惕烟雾，在食堂权衡食物代价，在澡堂与金钱之间做出抉择。",
+      "你的精神值——决定了你能否在五天的校园生活中存活下来。",
+      "",
+      "活下去。保持清醒。或者，成为气味本身。"
+    ].join("\\n");
+    const elType = document.getElementById('type');
+    const elModes = document.getElementById('modes');
+    const btnSkip = document.getElementById('btnSkip');
+    const btnShowModes = document.getElementById('btnShowModes');
+
+    let typing = true;
+    let i = 0;
+    const speed = 14; // ms
+    function tick(){
+      if(!typing) return;
+      i += 1;
+      elType.textContent = STORY.slice(0, i);
+      if(i < STORY.length){
+        requestAnimationFrame(() => setTimeout(tick, speed));
+      }else{
+        typing = false;
+        showModes();
+      }
+    }
+    function showModes(){
+      elModes.style.display = '';
+      if(!elType.querySelector('.cursor')){
+        const cur = document.createElement('span');
+        cur.className = 'cursor';
+        elType.appendChild(cur);
+      }
+    }
+
+    btnSkip.addEventListener('click', () => {
+      typing = false;
+      elType.textContent = STORY;
+      showModes();
+    });
+    btnShowModes.addEventListener('click', () => {
+      typing = false;
+      if(elType.textContent.length < STORY.length) elType.textContent = STORY;
+      showModes();
+    });
+
+    tick();
+  </script>
+</body>
+</html>
+
