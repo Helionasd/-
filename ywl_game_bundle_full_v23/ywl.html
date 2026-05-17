@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="color-scheme" content="light" />
+  <title>异闻录</title>
+  <style>
+    html,body{height:100%;margin:0;}
+    body{
+      font-family: ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", Arial, sans-serif;
+      background:#0b1020;
+      overflow:hidden;
+    }
+    canvas{position:fixed;inset:0;width:100%;height:100%;image-rendering:pixelated;}
+    .ui{
+      position:fixed;inset:0;
+      display:flex;align-items:flex-end;justify-content:center;
+      padding: 18px;
+      pointer-events:none;
+    }
+    .panel{
+      width:min(980px, 100%);
+      border-radius: 16px;
+      background: rgba(255,255,255,0.82);
+      border: 1px solid rgba(15,23,42,0.14);
+      box-shadow: 0 22px 70px rgba(0,0,0,0.30);
+      padding: 14px;
+      backdrop-filter: blur(10px);
+      pointer-events:auto;
+    }
+    .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between;}
+    .title{
+      font-weight: 900;
+      letter-spacing: .04em;
+      font-size: 20px;
+      color: rgba(15,23,42,0.92);
+    }
+    .sub{font-size:12px;color:rgba(15,23,42,0.62);margin-top:4px;line-height:1.5;}
+    .btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;}
+    .btn{
+      appearance:none;
+      border:1px solid rgba(15,23,42,0.14);
+      background: rgba(15,23,42,0.04);
+      color: rgba(15,23,42,0.88);
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-weight: 900;
+      font-size: 14px;
+      cursor:pointer;
+      transition: .12s ease;
+    }
+    .btn:hover{transform:translateY(-1px);background:rgba(15,23,42,0.07);}
+    .btn.primary{
+      border-color: rgba(37,99,235,0.36);
+      background: linear-gradient(180deg, rgba(37,99,235,0.18), rgba(37,99,235,0.06));
+    }
+    .btn.danger{
+      border-color: rgba(239,68,68,0.30);
+      background: linear-gradient(180deg, rgba(239,68,68,0.12), rgba(239,68,68,0.04));
+    }
+    .type{
+      margin-top: 10px;
+      white-space: pre-wrap;
+      font-size: 13px;
+      line-height: 1.7;
+      color: rgba(15,23,42,0.82);
+      max-height: 42vh;
+      overflow:auto;
+      border-radius: 12px;
+      border: 1px dashed rgba(15,23,42,0.14);
+      background: rgba(255,255,255,0.65);
+      padding: 10px 12px;
+    }
+    .hint{
+      margin-top:8px;
+      font-size:12px;
+      color: rgba(15,23,42,0.62);
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div class="ui">
+    <div class="panel" id="panel">
+      <div class="row">
+        <div>
+          <div class="title" id="uiTitle">《异闻录》</div>
+          <div class="sub" id="uiSub">一部关于气味、生存与青春的非官方校园史</div>
+        </div>
+        <div class="btns">
+          <button class="btn" id="btnSkip">跳过引入</button>
+          <button class="btn primary" id="btnNext">继续</button>
+        </div>
+      </div>
+      <div class="type" id="type"></div>
+      <div class="hint" id="hint">
+        <span>提示：点击任意处/按空格也可继续</span>
+        <span id="stageHint">引入中</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---------- 资源 ----------
+    const bg = new Image();
+    bg.src = 'ywl_splash.jpg';
+    const ground = new Image();
+    ground.src = 'assets/campus_ground.jpg';
+
+    // ---------- 文本（使用你之前发的序章精简版，保持节奏适合动画） ----------
+    const STORY = [
+      '序章：那个夏天之后，一切都变了',
+      '那件事的起因，至今没有定论。',
+      '',
+      '开学第三周，教务系统崩溃。选课记录清零。',
+      '排课连锁反应像多米诺骨牌一样倒下：',
+      '体育课和近现代史纲要挤在同一天上午，',
+      '高等数学被塞进午休时段，',
+      '英语课——全部排在周五下午最后一节。',
+      '',
+      '图书馆座位稀缺，澡堂热水限时供应，',
+      '乐跑系统频繁崩溃。',
+      '学生们精神状态逐渐下滑，校园气味开始变得微妙。',
+      '',
+      '你必须学会：预判气味分布、警惕烟雾、权衡食物代价、',
+      '在金钱与清醒之间做出抉择。',
+      '',
+      '活下去。保持清醒。',
+      '或者，成为气味本身。',
+    ].join('\n');
+
+    // ---------- UI ----------
+    const elType = document.getElementById('type');
+    const elStageHint = document.getElementById('stageHint');
+    const btnSkip = document.getElementById('btnSkip');
+    const btnNext = document.getElementById('btnNext');
+    const uiTitle = document.getElementById('uiTitle');
+    const uiSub = document.getElementById('uiSub');
+
+    // stages: intro -> main -> mode
+    let stage = 'intro';
+    let typing = true;
+    let i = 0;
+
+    function setStage(s){
+      stage = s;
+      if(stage === 'intro'){
+        uiTitle.textContent = '《异闻录》';
+        uiSub.textContent = '一部关于气味、生存与青春的非官方校园史';
+        btnSkip.style.display = '';
+        btnNext.textContent = '继续';
+        elStageHint.textContent = '引入中';
+      }else if(stage === 'main'){
+        uiTitle.textContent = '《异闻录》';
+        uiSub.textContent = '你今天是第几天？不重要，先活着。';
+        btnSkip.style.display = 'none';
+        btnNext.textContent = '选择模式';
+        elStageHint.textContent = '主界面';
+      }else if(stage === 'mode'){
+        uiTitle.textContent = '选择模式';
+        uiSub.textContent = '同一世界观，不同活法。';
+        btnSkip.style.display = 'none';
+        btnNext.textContent = '返回';
+        elStageHint.textContent = '模式选择';
+        elType.innerHTML = '';
+        const box = document.createElement('div');
+        box.style.display = 'grid';
+        box.style.gridTemplateColumns = '1fr';
+        box.style.gap = '10px';
+        box.innerHTML = `
+          <button class="btn primary" id="goM1">进入「闻风丧胆」</button>
+          <button class="btn primary" id="goM2">进入「风行天下」</button>
+          <button class="btn" id="goHelp">玩法提示</button>
+        `;
+        elType.appendChild(box);
+        document.getElementById('goM1').onclick = () => location.href = 'ywl_pixel.html';
+        document.getElementById('goM2').onclick = () => location.href = 'ywl_pixel_m2.html';
+        document.getElementById('goHelp').onclick = () => {
+          alert('闻风丧胆：5天生存，核心是SAN与日程。\n风行天下：3天传播，核心是影响/人数。\n\n都可在右上角【模式】返回这里。');
+        };
+      }
+    }
+
+    function finishIntro(){
+      typing = false;
+      elType.textContent = STORY;
+      setStage('main');
+    }
+
+    function onNext(){
+      if(stage === 'intro'){
+        finishIntro();
+        return;
+      }
+      if(stage === 'main'){
+        setStage('mode');
+        return;
+      }
+      if(stage === 'mode'){
+        // 返回主界面
+        elType.textContent = STORY;
+        setStage('main');
+        return;
+      }
+    }
+
+    btnSkip.onclick = finishIntro;
+    btnNext.onclick = onNext;
+    window.addEventListener('keydown', (e) => {
+      if(e.key === ' ' || e.key === 'Enter') onNext();
+    });
+    window.addEventListener('pointerdown', (e) => {
+      // 点按钮不重复触发
+      if(e.target && e.target.classList && e.target.classList.contains('btn')) return;
+      onNext();
+    }, { passive:true });
+
+    function typeTick(){
+      if(!typing) return;
+      i += 2;
+      elType.textContent = STORY.slice(0, i);
+      if(i >= STORY.length){
+        typing = false;
+        setStage('main');
+      }else{
+        setTimeout(typeTick, 16);
+      }
+    }
+    elType.textContent = '';
+    setStage('intro');
+    typeTick();
+
+    // ---------- 像素风背景动画 ----------
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d');
+    function resize(){
+      const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+      canvas.width = Math.floor(window.innerWidth * dpr);
+      canvas.height = Math.floor(window.innerHeight * dpr);
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    let t = 0;
+    function draw(){
+      t += 1/60;
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      ctx.clearRect(0,0,w,h);
+
+      // 背景：轻微横向漂移 + 轻微缩放，营造像素镜头动感
+      const img = bg.complete ? bg : (ground.complete ? ground : null);
+      if(img){
+        const s = 1.08 + Math.sin(t*0.4)*0.01;
+        const ox = Math.sin(t*0.25) * 18;
+        const oy = Math.cos(t*0.22) * 10;
+        const dw = w * s;
+        const dh = h * s;
+        ctx.globalAlpha = 1;
+        ctx.drawImage(img, (w-dw)/2 + ox, (h-dh)/2 + oy, dw, dh);
+      }else{
+        ctx.fillStyle = '#0b1020';
+        ctx.fillRect(0,0,w,h);
+      }
+
+      // 柔光遮罩
+      ctx.fillStyle = 'rgba(255,255,255,0.10)';
+      ctx.fillRect(0,0,w,h);
+
+      // 像素粒子（轻微飘动）
+      const count = 120;
+      for(let i=0;i<count;i++){
+        const x = (i*97.3 + t*40) % (w+40) - 20;
+        const y = (i*173.7 + Math.sin(t*0.7+i)*18) % (h+40) - 20;
+        const a = 0.05 + ((i%7)/7)*0.08;
+        ctx.fillStyle = `rgba(37,99,235,${a})`;
+        ctx.fillRect(x, y, 2, 2);
+      }
+
+      // 扫描线
+      ctx.globalAlpha = 0.10;
+      ctx.fillStyle = '#000';
+      for(let y=0; y<h; y+=4){
+        ctx.fillRect(0, y, w, 1);
+      }
+      ctx.globalAlpha = 1;
+
+      // 暗角
+      const g = ctx.createRadialGradient(w*0.5,h*0.45, Math.min(w,h)*0.25, w*0.5,h*0.5, Math.max(w,h)*0.75);
+      g.addColorStop(0, 'rgba(0,0,0,0)');
+      g.addColorStop(1, 'rgba(0,0,0,0.45)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0,0,w,h);
+
+      requestAnimationFrame(draw);
+    }
+    requestAnimationFrame(draw);
+  </script>
+</body>
+</html>
+
